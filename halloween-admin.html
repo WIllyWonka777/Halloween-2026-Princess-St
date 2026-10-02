@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — Halloween 2026</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script>
+    var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFDgCTElu-ZjqYkoWdwg9mBGOo6no8JOClygBqArGK04XvIR6itJoAaj-OboKl_Er9dQ/exec";
+    var PASSWORD = "Bday777";
+    var SHEET_ID = "1PkeFrm-sCJwgM_MtkKiMw6B93tYnyTx6XltJWHNdHqs";
+    var _rsvps = [], _pumpkin = [], _flipcup = [], _nominees = [], _votes = {};
+    var _suggestions = [];
+
+    function adminPost(data, callback) {
+      var url = SCRIPT_URL + '?' + Object.keys(data).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(data[k]===undefined?'':data[k]); }).join('&');
+      fetch(url).then(function(r){ return r.json(); }).then(function(d){ if(callback) callback(d); }).catch(function(){ if(callback) callback({ success:false }); });
+    }
+
+    function adminLog(msg, type) {
+      var el = document.getElementById('admin-debug');
+      if (!el) return;
+      var color = type==='error' ? '#ff4444' : type==='success' ? '#00ff88' : '#ff8533';
+      el.innerHTML = '<div style="color:'+color+';font-size:10px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.05)">'+new Date().toLocaleTimeString()+' — '+msg+'</div>'+el.innerHTML;
+    }
+
+    function checkLogin() {
+      var pw = document.getElementById('pw-input').value;
+      if (pw === PASSWORD) {
+        document.getElementById('login-screen').style.display='none';
+        document.getElementById('admin-panel').style.display='block';
+        loadAll();
+      } else {
+        document.getElementById('pw-error').style.display='block';
+        setTimeout(function(){ document.getElementById('pw-error').style.display='none'; }, 2000);
+      }
+    }
+    document.addEventListener('keyup', function(e){ if(e.key==='Enter' && document.getElementById('pw-input')) checkLogin(); });
+
+    function showTab(tab) {
+      document.querySelectorAll('.atab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('.apanel').forEach(function(p){ p.classList.remove('active'); });
+      document.getElementById('atab-'+tab).classList.add('active');
+      document.getElementById('apanel-'+tab).classList.add('active');
+    }
+
+    function loadAll() {
+      loadRSVPs(); loadGames(); loadVotes(); loadSuggestions(); loadGhostAdmin();
+      adminLog('All data loaded', 'success');
+    }
+
+    // ── RSVPs ──
+    function loadRSVPs() {
+      fetch(SCRIPT_URL + '?action=get_halloween_rsvps')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d.success) return;
+          _rsvps = d.data||[];
+          var att = _rsvps.filter(function(r){ return r.attending&&r.attending.indexOf('attending')!==-1; });
+          document.getElementById('hw-stat-rsvps').textContent = _rsvps.length;
+          document.getElementById('hw-stat-att').textContent = att.length;
+          renderRSVPs();
+        }).catch(function(){});
+    }
+
+    function renderRSVPs() {
+      var el = document.getElementById('hw-rsvp-list');
+      if (!_rsvps.length) { el.innerHTML='<div class="empty-msg">No RSVPs yet.</div>'; return; }
+      el.innerHTML = _rsvps.map(function(r,i){
+        var isIn = r.attending&&r.attending.indexOf('attending')!==-1;
+        return '<div class="signup-row">' +
+          '<div class="signup-info">' +
+            '<div class="signup-name">'+r.name+' <span class="status-badge '+(isIn?'status-in':'status-out')+'">'+(isIn?'✓ Coming':'✗ Out')+'</span></div>' +
+            (r.costume?'<div class="signup-detail">🎭 '+r.costume+'</div>':'') +
+            (r.plusoneName?'<div class="signup-detail">+1: '+r.plusoneName+(r.plusoneCostume?' as '+r.plusoneCostume:'')+'</div>':'') +
+            (r.message?'<div class="signup-detail" style="color:rgba(255,107,0,0.4);font-style:italic">💬 '+r.message+'</div>':'') +
+          '</div>' +
+          '<div class="signup-actions"><button class="action-sm red" onclick="removeHWRSVP('+i+','+r.rowIndex+')">✗</button></div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function removeHWRSVP(i, rowIndex) {
+      if (!confirm('Remove RSVP for "'+_rsvps[i].name+'"?')) return;
+      _rsvps.splice(i,1); renderRSVPs();
+      adminPost({ action:'halloween_remove_rsvp', rowIndex:rowIndex }, function(d){ adminLog(d.success?'✓ RSVP removed':'✗ Failed',d.success?'success':'error'); });
+    }
+
+    // ── GAMES ──
+    function loadGames() {
+      fetch(SCRIPT_URL+'?action=get_halloween_signups&game=mummy')
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d.success&&d.data){ renderMummyTeams(d.data); } }).catch(function(){});
+      fetch(SCRIPT_URL+'?action=get_halloween_signups&game=pumpkin')
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d.success&&d.data){ _pumpkin=d.data; renderPumpkin(); } }).catch(function(){});
+      fetch(SCRIPT_URL+'?action=get_halloween_signups&game=flipcup')
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d.success&&d.data){ _flipcup=d.data; renderFlipCup(); } }).catch(function(){});
+    }
+
+    function renderMummyTeams(data) {
+      var el = document.getElementById('hw-mummy-list');
+      if (!el) return;
+      if (!data || !data.length) { el.innerHTML='<div class="empty-msg">No teams yet.</div>'; return; }
+      el.innerHTML = data.map(function(t,i){
+        return '<div class="signup-row"><div class="signup-info">' +
+          '<div class="signup-name">🧻 '+(t.name||t.team)+'</div>' +
+          '<div class="signup-detail">'+(t.player1||'')+(t.player2?' · '+t.player2:'')+(t.player3?' · '+t.player3:'')+'</div></div></div>';
+      }).join('');
+    }
+
+    function renderPumpkin() {
+      document.getElementById('hw-pc-count').textContent=_pumpkin.length;
+      var el=document.getElementById('hw-pc-list');
+      if(!_pumpkin.length){el.innerHTML='<div class="empty-msg">No carvers yet.</div>';return;}
+      el.innerHTML=_pumpkin.map(function(p,i){
+        return '<div class="signup-row"><div class="signup-info"><div class="signup-name">'+p.name+'</div><div class="signup-detail">'+(p.bringOwn?'🪣 Bringing own':'🎃 Using provided')+'</div></div>' +
+          '<div class="signup-actions"><button class="action-sm red" onclick="removeHWSignup(\'pumpkin\',\''+p.name+'\')">✗</button></div></div>';
+      }).join('');
+    }
+
+    function renderFlipCup() {
+      document.getElementById('hw-fc-count').textContent=_flipcup.length;
+      var el=document.getElementById('hw-fc-list');
+      if(!_flipcup.length){el.innerHTML='<div class="empty-msg">No players yet.</div>';return;}
+      el.innerHTML=_flipcup.map(function(p,i){
+        return '<div class="signup-row"><div class="signup-info"><div class="signup-name">'+p.name+'</div></div>' +
+          '<div class="signup-actions"><button class="action-sm red" onclick="removeHWSignup(\'flipcup\',\''+p.name+'\')">✗</button></div></div>';
+      }).join('');
+    }
+
+    function removeHWSignup(game, name) {
+      if (!confirm('Remove "'+name+'" from '+game+'?')) return;
+      if (game==='pumpkin') { _pumpkin=_pumpkin.filter(function(p){return p.name!==name;}); renderPumpkin(); }
+      else { _flipcup=_flipcup.filter(function(p){return p.name!==name;}); renderFlipCup(); }
+      adminPost({ action:'halloween_remove_signup', game:game, name:name }, function(d){ adminLog(d.success?'✓ Removed':'✗ Failed',d.success?'success':'error'); });
+    }
+
+    // ── VOTES ──
+    function loadVotes() {
+      fetch(SCRIPT_URL+'?action=get_halloween_nominees')
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d.success&&d.data){ _nominees=d.data; renderNominees(); } }).catch(function(){});
+      fetch(SCRIPT_URL+'?action=get_halloween_votes')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d.success&&d.data){
+            _votes=d.data;
+            var sorted=Object.entries(_votes).sort(function(a,b){return b[1]-a[1];});
+            var total=Object.values(_votes).reduce(function(s,v){return s+v;},0);
+            var html=sorted.map(function(e,i){
+              var pct=total>0?Math.round(e[1]/total*100):0;
+              return '<div class="list-item"><div class="list-num" style="'+(i===0?'color:var(--orange)':'')+'">'+(i===0?'🏆':i+1)+'</div>' +
+                '<div style="flex:1"><div class="list-name">'+e[0]+'</div>' +
+                '<div style="margin-top:5px;height:4px;background:rgba(0,0,0,0.3);border-radius:2px"><div style="height:4px;width:'+pct+'%;background:'+(i===0?'var(--orange)':'rgba(255,107,0,0.4)')+';border-radius:2px"></div></div></div>' +
+                '<div class="list-detail">'+e[1]+' vote'+(e[1]!==1?'s':'')+'</div></div>';
+            }).join('');
+            document.getElementById('hw-tally').innerHTML=html||'<div class="empty-msg">No votes yet.</div>';
+          }
+        }).catch(function(){});
+    }
+
+    function renderNominees() {
+      var el=document.getElementById('hw-nominees-list');
+      if(!_nominees.length){el.innerHTML='<div class="empty-msg">No nominees yet.</div>';return;}
+      el.innerHTML=_nominees.map(function(n,i){
+        return '<div class="signup-row"><div class="signup-info"><div class="signup-name">'+n.name+'</div><div class="signup-detail">as '+n.character+'</div></div>' +
+          '<div class="signup-actions"><button class="action-sm red" onclick="removeHWNominee('+i+',\''+n.name+'\')">✗</button></div></div>';
+      }).join('');
+    }
+
+    function removeHWNominee(i, name) {
+      if(!confirm('Remove "'+name+'" from nominees?')) return;
+      _nominees.splice(i,1); renderNominees();
+      adminPost({ action:'halloween_remove_nominee', name:name }, function(d){ adminLog(d.success?'✓ Nominee removed':'✗ Failed',d.success?'success':'error'); });
+    }
+
+    function revealHWWinner() {
+      var sorted=Object.entries(_votes).sort(function(a,b){return b[1]-a[1];});
+      if(!sorted.length){alert('No votes yet!');return;}
+      fetch(SCRIPT_URL+'?action=get_halloween_votes')
+        .then(function(r){return r.json();})
+        .then(function(d){
+          if(d.success&&d.data) _votes=d.data;
+          var s2=Object.entries(_votes).sort(function(a,b){return b[1]-a[1];});
+          var total=Object.values(_votes).reduce(function(a,v){return a+v;},0);
+          var topVotes=s2[0][1];
+          var tied=s2.filter(function(e){return e[1]===topVotes;});
+          if(tied.length>1){
+            var names=tied.map(function(e){return e[0];}).join(', ');
+            if(confirm('🔥 TIE between: '+names+'\n\nTrigger Sudden Death? This resets votes to just these nominees.')){
+              adminPost({ action:'halloween_reveal_winner', winner:tied[0][0], character:'TIE', votes:topVotes, total:total });
+              adminLog('🔥 TIE — '+names,'error');
+            }
+            return;
+          }
+          var winner=s2[0][0];
+          var nom=_nominees.find(function(n){return n.name===winner;});
+          var char=nom?nom.character:'?';
+          if(!confirm('Reveal winner: '+winner+' ('+topVotes+'/'+total+' votes)?\nThis shows live on halloween-vote.html')) return;
+          adminPost({ action:'halloween_reveal_winner', winner:winner, character:char, votes:topVotes, total:total }, function(d){
+            document.getElementById('hw-reveal-result').innerHTML='<div class="champion-box">🏆 '+winner+'<br><span style="font-size:14px;font-weight:400">as '+char+' · '+topVotes+'/'+total+' votes</span></div>';
+            adminLog('✓ Winner revealed: '+winner,'success');
+          });
+        }).catch(function(){});
+    }
+
+    // ── AFTERPARTY ──
+    // ── GHOST HUNT TALLY ──
+    var _ghostData = {};
+    function addGhost(name) {
+      if (!name) return;
+      _ghostData[name] = (_ghostData[name] || 0) + 1;
+      fetch(SCRIPT_URL + '?action=halloween_tally_ghost&name=' + encodeURIComponent(name) + '&delta=1')
+        .then(function(r){ return r.json(); })
+        .then(function(d){ adminLog(d.success ? '✓ Ghost: ' + name + ' → ' + d.count : '✗ Failed', d.success?'success':'error'); renderGhostAdmin(); }).catch(function(){});
+    }
+    function removeGhost(name) {
+      if (!name || !_ghostData[name]) return;
+      _ghostData[name] = Math.max(0, _ghostData[name] - 1);
+      fetch(SCRIPT_URL + '?action=halloween_tally_ghost&name=' + encodeURIComponent(name) + '&delta=-1')
+        .then(function(r){ return r.json(); })
+        .then(function(d){ adminLog(d.success ? '↩ Ghost removed: ' + name : '✗ Failed', d.success?'success':'error'); renderGhostAdmin(); }).catch(function(){});
+    }
+    function addGhostCustom() {
+      var name = document.getElementById('ghost-custom-name').value.trim();
+      if (!name) return;
+      addGhost(name);
+      document.getElementById('ghost-custom-name').value = '';
+    }
+    function loadGhostAdmin() {
+      fetch(SCRIPT_URL + '?action=get_halloween_ghosts')
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if (d.success && d.data) { _ghostData = d.data; renderGhostAdmin(); } }).catch(function(){});
+    }
+    function renderGhostAdmin() {
+      var el = document.getElementById('hw-ghost-list');
+      var total = 0;
+      Object.values(_ghostData).forEach(function(v){ total += v; });
+      document.getElementById('hw-ghost-total').textContent = total;
+      document.getElementById('hw-ghost-remaining').textContent = 50 - total;
+      var entries = Object.entries(_ghostData).sort(function(a,b){ return b[1]-a[1]; });
+      if (!entries.length) { el.innerHTML = '<div class="empty-msg">No ghosts found yet.</div>'; return; }
+      var html = '';
+      entries.forEach(function(e, i){
+        var nm = e[0], ct = e[1];
+        var medal = i === 0 ? '👻 ' : '';
+        html += '<div class="signup-row">';
+        html += '<div class="signup-info"><div class="signup-name">' + medal + nm + '</div></div>';
+        html += '<div style="display:flex;align-items:center;gap:8px">';
+        html += '<button class="action-sm red" onclick="removeCurrentGhost(this)" data-name="' + nm + '">−</button>';
+        html += '<span style="font-family:Bebas Neue,sans-serif;font-size:22px;color:var(--orange);width:32px;text-align:center">' + ct + '</span>';
+        html += '<button onclick="addCurrentGhost(this)" data-name="' + nm + '" style="padding:5px 10px;font-size:9px;font-family:Bebas Neue,sans-serif;cursor:pointer;background:rgba(200,224,0,0.15);color:#c8e000;border:1px solid rgba(200,224,0,0.3)">+</button>';
+        html += '</div></div>';
+      });
+      el.innerHTML = html;
+    }
+    function addCurrentGhost(btn) { addGhost(btn.getAttribute('data-name')); }
+    function removeCurrentGhost(btn) { removeGhost(btn.getAttribute('data-name')); }
+
+    // ── CURSED JAR ──
+    function revealJarWinner() {
+      var answer = parseInt(document.getElementById('jar-answer').value);
+      if (!answer || isNaN(answer)) { alert('Enter the real count!'); return; }
+      if (!confirm('Real answer: ' + answer + ' items in the jar?\n\nThis will calculate the winner immediately.')) return;
+      fetch(SCRIPT_URL + '?action=halloween_reveal_jar&answer=' + answer)
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.success) {
+            document.getElementById('jar-result').innerHTML =
+              '<div class="champion-box">🍬 JAR WINNER<br>' + d.winner + '<br><span style="font-size:13px;font-weight:400">Guessed ' + d.guess + ' · Real answer: ' + d.answer + ' · Off by ' + d.diff + '</span></div>';
+            adminLog('✓ Jar winner: ' + d.winner + ' (guessed ' + d.guess + ', answer ' + d.answer + ')', 'success');
+          } else { adminLog('✗ ' + (d.error||'Error'), 'error'); }
+        }).catch(function(){ adminLog('✗ Connection error', 'error'); });
+    }
+
+    function loadSuggestions() {
+      fetch(SCRIPT_URL+'?action=get_halloween_suggestions')
+        .then(function(r){return r.json();})
+        .then(function(d){
+          if(!d.success||!d.data) return;
+          _suggestions=d.data;
+          var el=document.getElementById('hw-suggestions-list');
+          if(!_suggestions.length){el.innerHTML='<div class="empty-msg">No suggestions yet.</div>';return;}
+          el.innerHTML=_suggestions.map(function(s,i){
+            return '<div class="list-item"><div class="list-num">'+(i+1)+'</div>' +
+              '<div><div class="list-name">'+s.spot+'</div>' +
+              (s.notes?'<div class="list-detail">'+s.notes+'</div>':'')+
+              '<div class="list-detail">by '+s.name+'</div></div>' +
+              '<div class="list-detail" style="font-family:Bebas Neue,sans-serif;font-size:16px;color:var(--orange)">'+s.votes+' votes</div></div>';
+          }).join('');
+        }).catch(function(){});
+    }
+  </script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{--bg:#06000e;--bg2:#0c0018;--mid:#130025;--orange:#ff6b00;--orange-border:rgba(255,107,0,0.3);--blood:#cc1111;--cream:#f0d9c0;--red:#ff4444;--green:#00ff88;--gold:#f5c518;}
+    body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--cream);}
+    .container{max-width:680px;margin:0 auto;padding:20px 16px;}
+    .login-screen{max-width:360px;margin:80px auto;text-align:center;padding:32px 24px;background:var(--mid);border:2px solid var(--orange-border);}
+    .login-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:var(--orange);margin-bottom:4px;}
+    .login-sub{font-size:12px;color:rgba(240,217,192,0.4);letter-spacing:2px;margin-bottom:20px;}
+    .pw-input{width:100%;padding:13px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,107,0,0.4);color:var(--cream);font-size:20px;text-align:center;letter-spacing:6px;outline:none;margin-bottom:10px;}
+    .pw-error{display:none;color:var(--red);font-size:12px;margin-bottom:8px;}
+    .enter-btn{width:100%;padding:13px;background:var(--orange);border:none;color:var(--bg);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:4px;cursor:pointer;}
+    #admin-panel{display:none;}
+    .admin-header{text-align:center;padding:16px 0 20px;}
+    .admin-header h1{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:3px;color:var(--orange);}
+    .admin-header .sub{font-size:11px;color:rgba(255,107,0,0.4);letter-spacing:3px;}
+    .debug-wrap{background:rgba(0,0,0,0.4);border:1px solid rgba(255,107,0,0.15);padding:10px 14px;margin-bottom:12px;}
+    .debug-label{font-size:9px;letter-spacing:2px;color:rgba(255,107,0,0.4);text-transform:uppercase;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;}
+    .test-btn{font-size:9px;letter-spacing:1px;color:var(--orange);background:transparent;border:1px solid rgba(255,107,0,0.3);padding:3px 8px;cursor:pointer;}
+    #admin-debug{max-height:70px;overflow-y:auto;font-size:10px;color:rgba(240,217,192,0.4);}
+    .admin-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;}
+    .atab{flex:1;min-width:70px;padding:10px 6px;background:var(--mid);border:1px solid rgba(255,107,0,0.2);color:rgba(255,107,0,0.5);font-size:9px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;text-align:center;transition:all .2s;font-family:'Bebas Neue',sans-serif;}
+    .atab.active{background:var(--orange);border-color:var(--orange);color:var(--bg);font-weight:700;}
+    .apanel{display:none;}.apanel.active{display:block;}
+    .stats-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+    .stat{flex:1;min-width:80px;background:var(--mid);border:1px solid rgba(255,107,0,0.15);padding:14px;text-align:center;}
+    .stat-val{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--orange);}
+    .stat-label{font-size:9px;letter-spacing:2px;color:rgba(240,217,192,0.35);text-transform:uppercase;}
+    .section{background:var(--mid);border:1px solid rgba(255,107,0,0.2);padding:16px;margin-bottom:14px;}
+    .section h2{font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;color:var(--cream);margin-bottom:4px;}
+    .refresh-btn{font-size:10px;letter-spacing:1px;color:var(--orange);background:transparent;border:1px solid rgba(255,107,0,0.25);padding:3px 10px;cursor:pointer;margin-left:8px;}
+    .section-sub{font-size:11px;color:rgba(240,217,192,0.4);margin-bottom:12px;}
+    .signup-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,107,0,0.08);}
+    .signup-row:last-child{border-bottom:none;}
+    .signup-info{flex:1;}
+    .signup-name{font-size:14px;color:var(--cream);margin-bottom:2px;}
+    .signup-detail{font-size:11px;color:rgba(255,107,0,0.5);}
+    .signup-actions{display:flex;gap:6px;flex-shrink:0;}
+    .action-sm{padding:5px 10px;font-size:9px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;border:none;transition:all .2s;}
+    .action-sm.red{background:rgba(255,68,68,0.15);color:var(--red);border:1px solid rgba(255,68,68,0.3);}
+    .status-badge{font-size:8px;letter-spacing:1px;padding:2px 8px;border-radius:2px;}
+    .status-in{background:rgba(0,255,136,0.1);color:#00ff88;border:1px solid rgba(0,255,136,0.3);}
+    .status-out{background:rgba(255,68,68,0.1);color:var(--red);border:1px solid rgba(255,68,68,0.3);}
+    .list-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,107,0,0.08);}
+    .list-item:last-child{border-bottom:none;}
+    .list-num{font-family:'Bebas Neue',sans-serif;font-size:20px;color:rgba(255,107,0,0.3);width:28px;}
+    .list-name{font-size:14px;color:var(--cream);}
+    .list-detail{font-size:11px;color:rgba(255,107,0,0.4);}
+    .empty-msg{font-size:12px;color:rgba(240,217,192,0.25);font-style:italic;padding:12px 0;}
+    .action-btn{width:100%;padding:13px;border:none;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:3px;cursor:pointer;margin-bottom:8px;transition:all .2s;}
+    .action-btn.orange{background:var(--orange);color:var(--bg);}
+    .action-btn.blood{background:var(--blood);color:var(--cream);}
+    .champion-box{background:rgba(255,107,0,0.08);border:2px solid var(--orange);padding:20px;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:var(--orange);margin-top:12px;}
+    .form-input{width:100%;padding:10px 14px;background:rgba(0,0,0,0.4);border:1px solid rgba(245,184,0,0.3);color:var(--cream);font-family:DM Sans,sans-serif;font-size:14px;outline:none;}
+    a.sheet-link{font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:2px;color:var(--orange);border:1px solid rgba(255,107,0,0.3);padding:4px 10px;text-decoration:none;display:inline-block;margin-bottom:10px;}
+  </style>
+</head>
+<body>
+  <!-- Login -->
+  <div id="login-screen">
+    <div class="login-screen">
+      <div class="login-title">🎃 HALLOWEEN ADMIN</div>
+      <div class="login-sub">Eduardo's Birthday · Oct 31 2026</div>
+      <input class="pw-input" id="pw-input" type="password" placeholder="••••••••"/>
+      <div class="pw-error" id="pw-error">Wrong password.</div>
+      <button class="enter-btn" onclick="checkLogin()">ENTER →</button>
+    </div>
+  </div>
+
+  <!-- Admin Panel -->
+  <div id="admin-panel">
+    <div class="container">
+      <div class="admin-header">
+        <h1>🎃 Halloween Admin</h1>
+        <div class="sub">Oct 31 2026 · Eduardo's</div>
+      </div>
+
+      <div class="debug-wrap">
+        <div class="debug-label">
+          <span>CONNECTION LOG</span>
+          <button class="test-btn" onclick="fetch(SCRIPT_URL+'?action=get_halloween_rsvps').then(function(r){return r.json();}).then(function(d){adminLog('✓ Connected! '+((d.data||[]).length)+' Halloween RSVPs',d.success?'success':'error');}).catch(function(){adminLog('✗ Cannot reach backend','error');})">TEST</button>
+        </div>
+        <div id="admin-debug">Ready.</div>
+      </div>
+
+      <div class="admin-tabs">
+        <div class="atab active" id="atab-overview" onclick="showTab('overview')">📊 Overview</div>
+        <div class="atab" id="atab-games" onclick="showTab('games')">🎃 Games</div>
+        <div class="atab" id="atab-votes" onclick="showTab('votes')">👑 Votes</div>
+        <div class="atab" id="atab-after" onclick="showTab('after')">🌙 After</div>
+      </div>
+
+      <!-- OVERVIEW -->
+      <div class="apanel active" id="apanel-overview">
+        <div class="stats-row">
+          <div class="stat"><div class="stat-val" id="hw-stat-rsvps">0</div><div class="stat-label">Total RSVPs</div></div>
+          <div class="stat"><div class="stat-val" id="hw-stat-att">0</div><div class="stat-label">Coming</div></div>
+        </div>
+        <div class="section">
+          <h2>RSVPs <button class="refresh-btn" onclick="loadRSVPs()">↻ Refresh</button></h2>
+          <a class="sheet-link" href="https://docs.google.com/spreadsheets/d/1PkeFrm-sCJwgM_MtkKiMw6B93tYnyTx6XltJWHNdHqs/edit" target="_blank">📊 VIEW SHEET →</a>
+          <div id="hw-rsvp-list"><div class="empty-msg">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- GAMES -->
+      <div class="apanel" id="apanel-games">
+        <div class="section">
+          <h2>🧻 Mummy Wrap Teams <button class="refresh-btn" onclick="loadGames()">↻</button></h2>
+          <div id="hw-mummy-list"><div class="empty-msg">Loading...</div></div>
+        </div>
+        <div class="section">
+          <h2>👻 Ghost Hunt Tally <button class="refresh-btn" onclick="loadGhostAdmin()">↻</button></h2>
+          <div class="section-sub">50 ghosts hidden. Tap + to add a ghost found, − to undo. Leaderboard live on guests' phones every 15s.</div>
+          <div class="stats-row">
+            <div class="stat"><div class="stat-val" id="hw-ghost-total">0</div><div class="stat-label">Found</div></div>
+            <div class="stat"><div class="stat-val" id="hw-ghost-remaining">50</div><div class="stat-label">Remaining</div></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <input id="ghost-custom-name" class="form-input" placeholder="Guest name..." style="margin-bottom:0;flex:1"/>
+            <button onclick="addGhostCustom()" style="padding:10px 16px;background:var(--orange);border:none;color:#120300;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;flex-shrink:0">ADD 👻</button>
+          </div>
+          <div id="hw-ghost-list"><div class="empty-msg">No ghosts found yet.</div></div>
+        </div>
+        <div class="section">
+          <h2>🍬 Cursed Jar</h2>
+          <div class="section-sub">Enter the real count at end of night to reveal winner.</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input id="jar-answer" type="number" class="form-input" placeholder="Real number of items..." style="margin-bottom:0;flex:1"/>
+            <button onclick="revealJarWinner()" style="padding:10px 16px;background:var(--orange);border:none;color:#120300;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;flex-shrink:0">REVEAL</button>
+          </div>
+          <div id="jar-result"></div>
+        </div>
+        <div class="section">
+          <h2>🎃 Pumpkin Carving</h2>
+          <div class="stats-row">
+            <div class="stat"><div class="stat-val" id="hw-pc-count">0</div><div class="stat-label">Carvers</div></div>
+          </div>
+          <div id="hw-pc-list"><div class="empty-msg">Loading...</div></div>
+        </div>
+        <div class="section">
+          <h2>🍺 Flip Cup</h2>
+          <div class="stats-row">
+            <div class="stat"><div class="stat-val" id="hw-fc-count">0</div><div class="stat-label">Players</div></div>
+          </div>
+          <div id="hw-fc-list"><div class="empty-msg">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- VOTES -->
+      <div class="apanel" id="apanel-votes">
+        <div class="section">
+          <h2>Nominees <button class="refresh-btn" onclick="loadVotes()">↻ Refresh</button></h2>
+          <div id="hw-nominees-list"><div class="empty-msg">Loading...</div></div>
+        </div>
+        <div class="section">
+          <h2>Live Tally</h2>
+          <div class="section-sub">Hidden from guests. Reveal winner at 9PM.</div>
+          <div id="hw-tally"><div class="empty-msg">No votes yet.</div></div>
+        </div>
+        <div class="section">
+          <h2>Reveal Winner</h2>
+          <button class="action-btn orange" onclick="revealHWWinner()">👑 REVEAL COSTUME WINNER LIVE</button>
+          <div id="hw-reveal-result"></div>
+        </div>
+      </div>
+
+      <!-- AFTERPARTY -->
+      <div class="apanel" id="apanel-after">
+        <div class="section">
+          <h2>Afterparty Suggestions <button class="refresh-btn" onclick="loadSuggestions()">↻</button></h2>
+          <div class="section-sub">Where guests want to go after midnight.</div>
+          <div id="hw-suggestions-list"><div class="empty-msg">Loading...</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

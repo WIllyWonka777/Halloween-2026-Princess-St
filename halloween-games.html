@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Games — Halloween 2026</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <script>
+    var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFDgCTElu-ZjqYkoWdwg9mBGOo6no8JOClygBqArGK04XvIR6itJoAaj-OboKl_Er9dQ/exec";
+    var _mummy = []; var _ghosts = {}; var _jarCount = 0;
+    var GHOST_TOTAL = 50;
+
+    function showGame(id) {
+      document.querySelectorAll('.game-panel').forEach(function(p){ p.classList.remove('active'); });
+      document.querySelectorAll('.game-tab').forEach(function(t){ t.classList.remove('active'); });
+      document.getElementById('panel-'+id).classList.add('active');
+      document.getElementById('tab-'+id).classList.add('active');
+    }
+
+    function showErr(id, msg) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = msg; el.style.display = 'block';
+      setTimeout(function(){ el.style.display = 'none'; }, 3000);
+    }
+    function showOk(id, msg) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = msg; el.style.display = 'block';
+      setTimeout(function(){ el.style.display = 'none'; }, 5000);
+    }
+    function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+
+    // ── MUMMY WRAP ──
+    function signUpMummy() {
+      var team = document.getElementById('mw-team').value.trim();
+      var p1 = document.getElementById('mw-p1').value.trim();
+      var p2 = document.getElementById('mw-p2').value.trim();
+      var p3 = document.getElementById('mw-p3').value.trim();
+      if (!team || !p1 || !p2 || !p3) { showErr('mw-error','Fill in all fields'); return; }
+      fetch(SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({ action:'halloween_signup', game:'mummy', name:team, player2:p2, player3:p3, player1:p1 })
+      }).catch(function(){});
+      _mummy.push({ team:team, players:[p1,p2,p3] });
+      document.getElementById('mw-team').value = '';
+      document.getElementById('mw-p1').value = '';
+      document.getElementById('mw-p2').value = '';
+      document.getElementById('mw-p3').value = '';
+      renderMummy();
+      showOk('mw-success', team + ' is registered! 🧻');
+    }
+    function renderMummy() {
+      setText('mw-count', _mummy.length);
+      var list = document.getElementById('mw-list');
+      if (!list) return;
+      if (!_mummy.length) { list.innerHTML = '<div class="empty-state">No teams yet — be first! 🧻</div>'; return; }
+      list.innerHTML = _mummy.map(function(t,i){
+        return '<div class="player-item"><div class="player-num">'+(i+1)+'</div>' +
+          '<div><div class="player-name">'+t.team+'</div><div class="player-char">'+t.players.join(' · ')+'</div></div></div>';
+      }).join('');
+    }
+
+    // ── GHOST HUNT ──
+    function loadGhosts() {
+      fetch(SCRIPT_URL + '?action=get_halloween_ghosts')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.success && d.data) { _ghosts = d.data; renderGhosts(); }
+        }).catch(function(){});
+    }
+    function renderGhosts() {
+      var el = document.getElementById('ghost-leaderboard');
+      if (!el) return;
+      var entries = Object.entries(_ghosts).sort(function(a,b){ return b[1]-a[1]; });
+      if (!entries.length) { el.innerHTML = '<div class="empty-state">No ghosts found yet 👻<br><span style="font-size:11px">Hunt starts at the party!</span></div>'; return; }
+      var found = entries.reduce(function(s,e){ return s+e[1]; }, 0);
+      setText('ghost-found', found);
+      setText('ghost-remaining', GHOST_TOTAL - found);
+      el.innerHTML = entries.map(function(e,i){
+        var pct = Math.round(e[1]/GHOST_TOTAL*100);
+        var medal = i===0?'👻':i===1?'🥈':i===2?'🥉':'';
+        return '<div class="ghost-row'+(i===0?' ghost-leader':'')+'">' +
+          '<div class="ghost-rank">'+(medal||i+1)+'</div>' +
+          '<div style="flex:1"><div class="ghost-name">'+e[0]+'</div>' +
+          '<div style="margin-top:5px;height:6px;background:rgba(0,0,0,0.3);border-radius:3px"><div style="height:6px;width:'+pct+'%;background:var(--orange);border-radius:3px;transition:width 0.5s"></div></div></div>' +
+          '<div class="ghost-count">'+e[1]+' 👻</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    // ── CURSED JAR ──
+    function submitJarGuess() {
+      var name = document.getElementById('jar-name').value.trim();
+      var guess = parseInt(document.getElementById('jar-guess').value);
+      if (!name) { showErr('jar-error','Enter your name'); return; }
+      if (!guess || guess < 1 || guess > 9999) { showErr('jar-error','Enter a valid number'); return; }
+      var btn = document.getElementById('jar-btn');
+      btn.textContent = 'Submitting...'; btn.disabled = true;
+      var savedGuess = guess;
+      fetch(SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({ action:'halloween_jar_guess', name:name, guess:guess })
+      }).then(function(){
+        finishJar(savedGuess, btn);
+      }).catch(function(){
+        finishJar(savedGuess, btn);
+      });
+    }
+    function finishJar(guess, btn) {
+      _jarCount++;
+      setText('jar-count', _jarCount + ' guesses in');
+      document.getElementById('jar-name').value = '';
+      document.getElementById('jar-guess').value = '';
+      btn.textContent = 'SUBMIT GUESS 🍬'; btn.disabled = false;
+      document.getElementById('jar-form').style.display = 'none';
+      document.getElementById('jar-success').style.display = 'block';
+      document.getElementById('jar-success').innerHTML = '✓ Locked in! Your guess: <strong style="color:var(--orange)">' + guess + '</strong><br><span style="font-size:11px;color:rgba(255,245,224,0.5)">Closest guess wins the whole jar 🍬</span>';
+    }
+
+
+    window.addEventListener('load', function(){
+      // Load all signups
+      fetch(SCRIPT_URL+'?action=get_halloween_signups&game=pumpkin').then(function(r){return r.json();}).then(function(d){if(d.success&&d.data){_pumpkin=d.data;renderPumpkin();}}).catch(function(){});
+      fetch(SCRIPT_URL+'?action=get_halloween_signups&game=mummy').then(function(r){return r.json();}).then(function(d){if(d.success&&d.data){_mummy=d.data.map(function(e){return{team:e.name,players:[e.player1||'',e.player2||'',e.player3||'']};});renderMummy();}}).catch(function(){});
+      fetch(SCRIPT_URL+'?action=get_halloween_jar_count').then(function(r){return r.json();}).then(function(d){if(d.success){_jarCount=d.count||0;setText('jar-count',_jarCount+' guesses in');}}).catch(function(){});
+      loadGhosts();
+      setInterval(loadGhosts, 15000);
+    });
+  </script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{--bg:#06000e;--bg2:#0c0018;--mid:#130025;--orange:#ff6b00;--orange-border:rgba(255,107,0,0.3);--blood:#cc1111;--cream:#f0d9c0;}
+    body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif;overflow-x:hidden;color:var(--cream);}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,107,0,0.008) 3px,rgba(255,107,0,0.008) 4px);pointer-events:none;z-index:99;}
+    body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(100,0,180,0.18) 0%,transparent 65%);pointer-events:none;z-index:0;}
+    .film-strip-left,.film-strip-right{position:fixed;top:0;bottom:0;width:28px;background:var(--bg2);border-right:1px solid rgba(255,107,0,0.15);z-index:10;display:flex;flex-direction:column;justify-content:space-around;align-items:center;padding:10px 0;}
+    .film-strip-right{right:0;left:auto;border-right:none;border-left:1px solid rgba(255,107,0,0.15);}
+    .film-hole{width:12px;height:16px;background:var(--bg);border-radius:2px;border:1px solid rgba(255,107,0,0.15);flex-shrink:0;}
+    .container{max-width:460px;margin:0 auto;padding:0 44px;position:relative;z-index:2;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+    .nav{display:flex;gap:6px;padding:14px 0 0;}
+    .nav a{flex:1;padding:12px 6px;background:var(--mid);border:1px solid rgba(255,107,0,0.3);color:rgba(255,107,0,0.75);font-size:11px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;text-align:center;transition:all 0.2s;font-family:'Bebas Neue',sans-serif;}
+    .nav a:hover,.nav a.active{background:var(--orange);color:var(--bg);font-weight:700;}
+    .page-header{padding:20px 0 14px;}
+    .page-tag{display:inline-block;background:rgba(245,184,0,0.1);border:1px solid rgba(255,107,0,0.3);color:var(--orange);font-size:9px;letter-spacing:4px;text-transform:uppercase;padding:4px 14px;margin-bottom:10px;}
+    .page-header h1{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--cream);letter-spacing:3px;margin-bottom:2px;}
+    .page-header h1 span{color:var(--orange);}
+    .page-header .sub{font-size:12px;color:rgba(255,245,224,0.45);}
+    .game-tabs{display:flex;gap:5px;margin-bottom:16px;flex-wrap:wrap;}
+    .game-tab{flex:1;min-width:60px;padding:10px 4px;background:var(--mid);border:1px solid rgba(255,107,0,0.2);color:rgba(255,107,0,0.55);font-size:9px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;text-align:center;transition:all .2s;font-family:'Bebas Neue',sans-serif;}
+    .game-tab.active{background:var(--orange);border-color:var(--orange);color:#120300;font-weight:700;}
+    .game-panel{display:none;}.game-panel.active{display:block;}
+    .section{background:var(--mid);border:1px solid rgba(255,107,0,0.2);padding:16px;margin-bottom:14px;}
+    .section h2{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;color:var(--cream);margin-bottom:4px;}
+    .section .section-sub{font-size:12px;color:rgba(255,245,224,0.5);margin-bottom:14px;line-height:1.6;}
+    .prize-note{background:rgba(255,107,0,0.06);border:1px solid rgba(255,107,0,0.2);border-left:3px solid var(--orange);padding:10px 14px;font-size:12px;color:rgba(255,245,224,0.85);line-height:1.6;margin-bottom:14px;}
+    .prize-note strong{color:var(--orange);}
+    .form-input{width:100%;padding:11px 14px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,107,0,0.3);color:var(--cream);font-family:'DM Sans',sans-serif;font-size:15px;outline:none;margin-bottom:10px;transition:border-color .2s;}
+    .form-input:focus{border-color:var(--orange);}
+    .form-input::placeholder{color:rgba(255,245,224,0.25);font-style:italic;}
+    .form-btn{width:100%;padding:13px;background:var(--orange);border:none;color:#120300;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:3px;cursor:pointer;transition:all .2s;margin-top:4px;font-weight:700;}
+    .form-btn:hover{background:#d49500;}
+    .error-msg{display:none;font-size:11px;color:#ff6b6b;margin-bottom:8px;}
+    .success-msg{display:none;font-size:12px;color:#6bcc6b;margin-top:8px;line-height:1.5;}
+    .stat-row{display:flex;gap:10px;margin-bottom:14px;}
+    .stat-box{flex:1;background:rgba(0,0,0,0.3);border:1px solid rgba(255,107,0,0.12);padding:12px;text-align:center;}
+    .stat-val{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--orange);}
+    .stat-label{font-size:9px;letter-spacing:2px;color:rgba(255,245,224,0.35);text-transform:uppercase;}
+    .pumpkin-slots{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+    .pumpkin-slot{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;border:1px solid rgba(255,107,0,0.2);background:rgba(0,0,0,0.2);}
+    .pumpkin-slot.taken{border-color:rgba(255,107,0,0.45);background:rgba(255,107,0,0.06);}
+    .pumpkin-slot.free{color:rgba(255,245,224,0.15);}
+    .checkbox-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer;}
+    .checkbox-row input{width:18px;height:18px;accent-color:var(--orange);}
+    .checkbox-row label{font-size:13px;color:rgba(255,245,224,0.8);cursor:pointer;}
+    .list-title{font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:3px;color:rgba(255,107,0,0.6);margin-bottom:10px;margin-top:4px;}
+    .player-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,107,0,0.08);}
+    .player-item:last-child{border-bottom:none;}
+    .player-num{font-family:'Bebas Neue',sans-serif;font-size:18px;color:rgba(255,107,0,0.35);width:28px;}
+    .player-name{flex:1;font-size:14px;color:var(--cream);}
+    .player-char{font-size:11px;color:rgba(255,107,0,0.45);}
+    .empty-state{text-align:center;padding:24px;color:rgba(255,245,224,0.25);font-style:italic;font-size:13px;line-height:1.8;}
+    /* Ghost hunt */
+    .ghost-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,107,0,0.08);}
+    .ghost-row:last-child{border-bottom:none;}
+    .ghost-row.ghost-leader{background:rgba(200,224,0,0.05);margin:-1px -4px;padding:12px 4px;border-radius:2px;}
+    .ghost-rank{font-family:'Bebas Neue',sans-serif;font-size:20px;color:rgba(245,184,0,0.4);width:36px;text-align:center;}
+    .ghost-name{font-size:14px;color:var(--cream);font-weight:500;}
+    .ghost-count{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--orange);flex-shrink:0;}
+    /* Photo booth */
+    .photo-booth-box{background:rgba(233,30,140,0.08);border:2px dashed rgba(233,30,140,0.3);padding:24px;text-align:center;margin-bottom:14px;}
+    .photo-booth-icon{font-size:48px;margin-bottom:12px;}
+    .photo-booth-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:3px;color:var(--pink);margin-bottom:8px;}
+    .photo-booth-desc{font-size:13px;color:rgba(255,245,224,0.7);line-height:1.7;margin-bottom:14px;}
+    .ig-btn{display:inline-block;background:var(--pink);color:#fff;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:3px;padding:12px 24px;text-decoration:none;transition:all .2s;}
+    .ig-btn:hover{background:#c01070;}
+    /* Cursed jar */
+    .jar-box{text-align:center;padding:16px 0 8px;}
+    .jar-icon{font-size:52px;margin-bottom:8px;}
+    .jar-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:var(--orange);margin-bottom:6px;}
+    .jar-desc{font-size:13px;color:rgba(255,245,224,0.7);line-height:1.7;margin-bottom:16px;}
+    .jar-count-badge{display:inline-block;background:rgba(245,184,0,0.1);border:1px solid rgba(255,107,0,0.3);color:rgba(245,184,0,0.85);font-size:11px;letter-spacing:2px;padding:4px 14px;margin-bottom:14px;}
+  </style>
+</head>
+<body>
+  <div class="film-strip-left"><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div></div>
+  <div class="film-strip-right"><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div></div>
+
+  <div class="container">
+    <nav class="nav">
+      <a href="halloween-index.html"><div style="font-size:18px;margin-bottom:3px">🎃</div>Invite</a>
+      <a href="halloween-games.html" class="active"><div style="font-size:18px;margin-bottom:3px">🔪</div>Games</a>
+      <a href="halloween-vote.html"><div style="font-size:18px;margin-bottom:3px">👑</div>Vote</a>
+      <a href="halloween-afterparty.html"><div style="font-size:18px;margin-bottom:3px">🌙</div>After</a>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-tag">🎃 Oct 31 · 70 Princess St</div>
+      <h1>The <span>Games</span></h1>
+      <div class="sub">Sign up below · Live on the night</div>
+    </div>
+
+    <div class="game-tabs">
+      <div class="game-tab active" id="tab-mummy" onclick="showGame('mummy')">🧻 Mummy</div>
+      <div class="game-tab" id="tab-ghost" onclick="showGame('ghost')">👻 Ghost Hunt</div>
+      <div class="game-tab" id="tab-jar" onclick="showGame('jar')">🍬 Cursed Jar</div>
+    </div>
+
+    <!-- MUMMY WRAP -->
+    <div class="game-panel active" id="panel-mummy">
+      <div class="section">
+        <h2>🧻 Centre-Stage Mummy Wrap</h2>
+        <div class="section-sub">Teams of 3. One person gets wrapped head to toe in toilet paper in 90 seconds. Fastest and best-wrapped team wins.</div>
+        <div class="prize-note">🍬 <strong>Prize:</strong> Winning team takes home bags of candy 🏆</div>
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-val" id="mw-count">0</div><div class="stat-label">Teams</div></div>
+        </div>
+        <label style="font-size:10px;letter-spacing:2px;color:var(--orange);text-transform:uppercase;display:block;margin-bottom:6px">Team Name</label>
+        <input class="form-input" id="mw-team" type="text" placeholder="Your team name..."/>
+        <label style="font-size:10px;letter-spacing:2px;color:var(--orange);text-transform:uppercase;display:block;margin-bottom:6px">Player 1 (The Mummy)</label>
+        <input class="form-input" id="mw-p1" type="text" placeholder="Gets wrapped..."/>
+        <label style="font-size:10px;letter-spacing:2px;color:var(--orange);text-transform:uppercase;display:block;margin-bottom:6px">Player 2 (Wrapper)</label>
+        <input class="form-input" id="mw-p2" type="text" placeholder="Does the wrapping..."/>
+        <label style="font-size:10px;letter-spacing:2px;color:var(--orange);text-transform:uppercase;display:block;margin-bottom:6px">Player 3 (Hype Person)</label>
+        <input class="form-input" id="mw-p3" type="text" placeholder="Cheers them on..."/>
+        <div class="error-msg" id="mw-error"></div>
+        <button class="form-btn" onclick="signUpMummy()">REGISTER TEAM 🧻</button>
+        <div class="success-msg" id="mw-success"></div>
+      </div>
+      <div class="section">
+        <div class="list-title">Registered Teams</div>
+        <div id="mw-list"><div class="empty-state">No teams yet — register above! 🧻</div></div>
+      </div>
+    </div>
+
+    <!-- GHOST HUNT -->
+    <div class="game-panel" id="panel-ghost">
+      <div class="section">
+        <h2>👻 Wandering Ghost Hunt</h2>
+        <div class="section-sub">50 little ghosts are hidden everywhere. Find as many as you can and bring them to the collection spot. Most ghosts by 10PM wins.</div>
+        <div class="prize-note">🏆 <strong>Prize:</strong> TBD by Eduardo night of · Ghosts found are logged by the host</div>
+        <div class="stat-row">
+          <div class="stat-box"><div class="stat-val" id="ghost-found">0</div><div class="stat-label">Found</div></div>
+          <div class="stat-box"><div class="stat-val" id="ghost-remaining">50</div><div class="stat-label">Remaining</div></div>
+        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:3px;color:rgba(200,224,0,0.5);margin-bottom:10px">👻 LIVE LEADERBOARD · Updates every 15s</div>
+        <div id="ghost-leaderboard"><div class="empty-state">No ghosts found yet 👻<br>Hunt starts at the party!</div></div>
+      </div>
+    </div>
+
+    <!-- CURSED JAR -->
+    <div class="game-panel" id="panel-jar">
+      <div class="section">
+        <div class="jar-box">
+          <div class="jar-icon">🍬</div>
+          <div class="jar-title">The Cursed Jar</div>
+          <div class="jar-desc">A jar packed with Halloween candy. Guess how many are inside — closest guess by end of night <strong style="color:var(--orange)">wins the entire jar</strong> to take home. 🍬</div>
+          <div class="jar-count-badge" id="jar-count">Loading...</div>
+        </div>
+        <div id="jar-form">
+          <label style="font-size:10px;letter-spacing:2px;color:var(--orange);text-transform:uppercase;display:block;margin-bottom:6px">Your Name</label>
+          <input class="form-input" id="jar-name" type="text" placeholder="Your name..."/>
+          <label style="font-size:10px;letter-spacing:2px;color:var(--orange);text-transform:uppercase;display:block;margin-bottom:6px">Your Guess — How many in the jar?</label>
+          <input class="form-input" id="jar-guess" type="number" min="1" max="9999" placeholder="Enter a number..."/>
+          <div class="error-msg" id="jar-error"></div>
+          <button class="form-btn" id="jar-btn" onclick="submitJarGuess()">SUBMIT GUESS 🍬</button>
+        </div>
+        <div id="jar-success" style="display:none;text-align:center;padding:16px;background:rgba(200,224,0,0.08);border:1px solid rgba(200,224,0,0.2);font-size:13px;color:rgba(255,245,224,0.8);line-height:1.8"></div>
+      </div>
+    </div>
+
+
+
+  </div>
+</body>
+</html>
