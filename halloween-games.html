@@ -231,6 +231,7 @@
       <div class="game-tab active" id="tab-mummy" onclick="showGame('mummy')">🧻 Mummy</div>
       <div class="game-tab" id="tab-ghost" onclick="showGame('ghost')">👻 Ghost Hunt</div>
       <div class="game-tab" id="tab-jar" onclick="showGame('jar')">🍬 Cursed Jar</div>
+      <div class="game-tab" id="tab-carving" onclick="showGame('carving')">🎃 Carving</div>
     </div>
 
     <!-- MUMMY WRAP -->
@@ -273,6 +274,67 @@
         <div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:3px;color:rgba(200,224,0,0.5);margin-bottom:10px">👻 LIVE LEADERBOARD · Updates every 15s</div>
         <div id="ghost-leaderboard"><div class="empty-state">No ghosts found yet 👻<br>Hunt starts at the party!</div></div>
       </div>
+    </div>
+
+    <!-- PUMPKIN CARVING -->
+    <div class="game-panel" id="panel-carving">
+      <div class="section">
+        <h2>🎃 Pumpkin Carving</h2>
+        <div class="section-sub">No sign-up needed — just show up at 5:30 PM and grab a spot. Carving runs until 9PM when the night kicks into full gear.</div>
+        <div class="prize-note">🥃 <strong>Prize:</strong> Best pumpkin wins a tequila bottle — judged at 10PM by the crowd 🏆</div>
+
+        <div style="margin-bottom:16px">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:3px;color:rgba(255,107,0,0.55);margin-bottom:10px">WHAT WE PROVIDE</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:11px 14px;background:rgba(255,107,0,0.05);border:1px solid rgba(255,107,0,0.15);border-left:3px solid var(--orange)">
+              <div style="font-size:22px;flex-shrink:0">🎃</div>
+              <div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--cream);margin-bottom:2px">10 Pumpkins</div>
+                <div style="font-size:12px;color:rgba(255,245,224,0.5);line-height:1.5">First come, first served — or bring your own if you want a specific size.</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:11px 14px;background:rgba(255,107,0,0.05);border:1px solid rgba(255,107,0,0.15);border-left:3px solid var(--orange)">
+              <div style="font-size:22px;flex-shrink:0">🔪</div>
+              <div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--cream);margin-bottom:2px">Carving Tools</div>
+                <div style="font-size:12px;color:rgba(255,245,224,0.5);line-height:1.5">Scoops, saws, detail blades — enough for everyone. Bring your own if you have a favourite.</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:11px 14px;background:rgba(255,107,0,0.05);border:1px solid rgba(255,107,0,0.15);border-left:3px solid var(--orange)">
+              <div style="font-size:22px;flex-shrink:0">📄</div>
+              <div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--cream);margin-bottom:2px">Stencil Cutouts</div>
+                <div style="font-size:12px;color:rgba(255,245,224,0.5);line-height:1.5">Classic and spooky patterns to trace. Or skip them entirely — freestyle gets extra respect.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,68,68,0.06);border:1px solid rgba(255,68,68,0.2);border-left:3px solid #ff4444;padding:12px 14px;margin-bottom:16px">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#ff7070;margin-bottom:4px">⚠️ ONE RULE</div>
+          <div style="font-size:13px;color:rgba(255,245,224,0.75);line-height:1.6">Clean up your station when you're done — guts, seeds, paper scraps. Bags and wipes will be on the table. This is a shared space and everyone appreciates it.</div>
+        </div>
+
+        <div style="background:rgba(200,224,0,0.05);border:1px solid rgba(200,224,0,0.15);padding:14px;margin-bottom:4px">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:3px;color:rgba(200,224,0,0.5);margin-bottom:10px">TIMELINE</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:12px;align-items:baseline">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--orange);flex-shrink:0;width:58px">5:30 PM</div>
+              <div style="font-size:12px;color:rgba(255,245,224,0.7)">Pumpkins and tools out — grab your spot and start carving</div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:baseline">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--orange);flex-shrink:0;width:58px">9:00 PM</div>
+              <div style="font-size:12px;color:rgba(255,245,224,0.7)">Carving closes — all pumpkins lined up for display</div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:baseline">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--orange);flex-shrink:0;width:58px">10:00 PM</div>
+              <div style="font-size:12px;color:rgba(255,245,224,0.7)">🏆 Best pumpkin winner announced live with all other prizes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:8px 0 20px;font-size:28px;letter-spacing:4px;opacity:0.3">🎃 🎃 🎃 🎃 🎃 🎃 🎃 🎃 🎃 🎃</div>
     </div>
 
     <!-- CURSED JAR -->
