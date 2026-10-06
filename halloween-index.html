@@ -68,20 +68,25 @@
       var guests = _guestList.filter(function(g){ return g.trim(); });
       fetch(SCRIPT_URL, {
         method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({ action:'halloween_rsvp', name:name, attending:_sel.attending,
+        body: JSON.stringify({ action:'submit_halloween_rsvp', name:name, attending:_sel.attending,
           guests:guests, message:msg,
           email: document.getElementById('emailInput') ? document.getElementById('emailInput').value.trim() : '' })
-      }).catch(function(){}).finally(function(){
+      }).then(function(){
         document.getElementById('rsvpSection').style.display='none';
         document.getElementById('rsvpSuccess').style.display='block';
-        document.getElementById('rsvpSuccessMsg').textContent = att
-          ? 'See you October 31st — come scary. 🎃'
-          : 'Noted. We will haunt you anyway. 👻';
+        document.getElementById('rsvpSuccessMsg').textContent = att ? 'See you October 31st, if you dare...' : 'Noted. We\'ll haunt you anyway.';
+        try { localStorage.setItem('hw26_rsvp_sent','1'); } catch(e){}
+        btn.disabled=false; btn.textContent='CONFIRM YOUR RSVP 🎃';
+      }).catch(function(){
+        btn.disabled=false; btn.textContent='CONFIRM YOUR RSVP 🎃';
+        err.style.display='block';
+        err.textContent='Connection error — please try again.';
+        setTimeout(function(){ err.style.display='none'; }, 4000);
       });
     }
 
     function renderSpiderTracker(confirmed) {
-      var pct = Math.round(confirmed / 100 * 100);
+      var pct = Math.min(confirmed, 100);
       var el = document.getElementById('spot-counter');
       if (!el) return;
       var R = 78;
@@ -129,7 +134,7 @@
           var confirmed = d.data.filter(function(r){ return r.attending && r.attending === 'attending'; }).length;
           renderSpiderTracker(confirmed);
           if (confirmed >= 100) {
-            var submitBtn = document.getElementById('rsvp-submit-btn');
+            var submitBtn = document.getElementById('rsvpSubmitBtn');
             if (submitBtn) {
               submitBtn.disabled = true;
               submitBtn.textContent = '💀 PARTY IS FULL';
@@ -162,6 +167,10 @@
         if (btn) { var o=btn.textContent; btn.textContent='✓ Copied!'; setTimeout(function(){btn.textContent=o;},2000); }
       });
     }
+    try { if(localStorage.getItem('hw26_rsvp_sent')==='1'){
+      document.getElementById('rsvpSection').style.display='none';
+      document.getElementById('rsvpSuccess').style.display='block';
+    }} catch(e){}
     window.addEventListener('load', function(){
       // Randomly show Jason or Freddy
       var r = Math.random() < 0.5;
