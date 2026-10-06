@@ -126,8 +126,19 @@
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (!d.success || !d.data) return;
-          var confirmed = d.data.filter(function(r){ return r.attending && r.attending.indexOf('attending') !== -1; }).length;
+          var confirmed = d.data.filter(function(r){ return r.attending && r.attending === 'attending'; }).length;
           renderSpiderTracker(confirmed);
+          if (confirmed >= 100) {
+            var submitBtn = document.getElementById('rsvp-submit-btn');
+            if (submitBtn) {
+              submitBtn.disabled = true;
+              submitBtn.textContent = '💀 PARTY IS FULL';
+              submitBtn.style.background = 'rgba(255,68,68,0.2)';
+              submitBtn.style.borderColor = 'rgba(255,68,68,0.4)';
+              submitBtn.style.color = '#ff4444';
+              submitBtn.style.cursor = 'not-allowed';
+            }
+          }
         }).catch(function(){});
     }
 

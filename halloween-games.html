@@ -114,12 +114,20 @@
       document.getElementById('jar-form').style.display = 'none';
       document.getElementById('jar-success').style.display = 'block';
       document.getElementById('jar-success').innerHTML = '✓ Locked in! Your guess: <strong style="color:var(--orange)">' + guess + '</strong><br><span style="font-size:11px;color:rgba(255,245,224,0.5)">Closest guess wins the whole jar 🍬</span>';
+      try { localStorage.setItem('hwJarGuessed', '1'); } catch(e){}
     }
 
 
     window.addEventListener('load', function(){
+      // Restore jar state from localStorage
+      try {
+        if (localStorage.getItem('hwJarGuessed')) {
+          document.getElementById('jar-form').style.display = 'none';
+          document.getElementById('jar-success').style.display = 'block';
+          document.getElementById('jar-success').innerHTML = '✓ Your guess is locked in! Closest wins the whole jar 🍬';
+        }
+      } catch(e){}
       // Load all signups
-      fetch(SCRIPT_URL+'?action=get_halloween_signups&game=pumpkin').then(function(r){return r.json();}).then(function(d){if(d.success&&d.data){_pumpkin=d.data;renderPumpkin();}}).catch(function(){});
       fetch(SCRIPT_URL+'?action=get_halloween_signups&game=mummy').then(function(r){return r.json();}).then(function(d){if(d.success&&d.data){_mummy=d.data.map(function(e){return{team:e.name,players:[e.player1||'',e.player2||'',e.player3||'']};});renderMummy();}}).catch(function(){});
       fetch(SCRIPT_URL+'?action=get_halloween_jar_count').then(function(r){return r.json();}).then(function(d){if(d.success){_jarCount=d.count||0;setText('jar-count',_jarCount+' guesses in');}}).catch(function(){});
       loadGhosts();
@@ -274,7 +282,7 @@
           <div class="jar-icon">🍬</div>
           <div class="jar-title">The Cursed Jar</div>
           <div class="jar-desc">A jar packed with Halloween candy. Guess how many are inside — closest guess by end of night <strong style="color:var(--orange)">wins the entire jar</strong> to take home. 🍬</div>
-          <div class="jar-count-badge" id="jar-count">Loading...</div>
+          <div class="jar-count-badge" id="jar-count">0 guesses in</div>
         </div>
         <div id="jar-form">
           <label style="font-size:10px;letter-spacing:2px;color:var(--orange);text-transform:uppercase;display:block;margin-bottom:6px">Your Name</label>

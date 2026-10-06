@@ -9,12 +9,13 @@
     var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9YYvDxU880oswA5oRKOpPW3TztUrJ0V0ic1OQMauReZPK03b8uNeZngX8WiCjzi-L/exec";
     var PASSWORD = "Bday777";
     var SHEET_ID = "1PkeFrm-sCJwgM_MtkKiMw6B93tYnyTx6XltJWHNdHqs";
-    var _rsvps = [], _pumpkin = [], _flipcup = [], _nominees = [], _votes = {};
+    var _rsvps = [], _mummy = [], _nominees = [], _votes = {};
     var _suggestions = [];
 
     function adminPost(data, callback) {
-      var url = SCRIPT_URL + '?' + Object.keys(data).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(data[k]===undefined?'':data[k]); }).join('&');
-      fetch(url).then(function(r){ return r.json(); }).then(function(d){ if(callback) callback(d); }).catch(function(){ if(callback) callback({ success:false }); });
+      fetch(SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(data) })
+        .then(function(){ if(callback) callback({ success:true }); })
+        .catch(function(){ if(callback) callback({ success:false }); });
     }
 
     function adminLog(msg, type) {
@@ -56,7 +57,7 @@
         .then(function(d){
           if (!d.success) return;
           _rsvps = d.data||[];
-          var att = _rsvps.filter(function(r){ return r.attending&&r.attending.indexOf('attending')!==-1; });
+          var att = _rsvps.filter(function(r){ return r.attending && r.attending === 'attending'; });
           document.getElementById('hw-stat-rsvps').textContent = _rsvps.length;
           document.getElementById('hw-stat-att').textContent = att.length;
           renderRSVPs();
@@ -67,17 +68,31 @@
       var el = document.getElementById('hw-rsvp-list');
       if (!_rsvps.length) { el.innerHTML='<div class="empty-msg">No RSVPs yet.</div>'; return; }
       el.innerHTML = _rsvps.map(function(r,i){
-        var isIn = r.attending&&r.attending.indexOf('attending')!==-1;
+        var isIn = r.attending && r.attending === 'attending';
+        var guestsStr = (r.guests && r.guests.length) ? r.guests.filter(Boolean).join(', ') : '';
         return '<div class="signup-row">' +
           '<div class="signup-info">' +
             '<div class="signup-name">'+r.name+' <span class="status-badge '+(isIn?'status-in':'status-out')+'">'+(isIn?'✓ Coming':'✗ Out')+'</span></div>' +
-            (r.costume?'<div class="signup-detail">🎭 '+r.costume+'</div>':'') +
-            (r.plusoneName?'<div class="signup-detail">+1: '+r.plusoneName+(r.plusoneCostume?' as '+r.plusoneCostume:'')+'</div>':'') +
+            (r.email?'<div class="signup-detail" style="color:rgba(255,245,224,0.3)">'+r.email+'</div>':'') +
+            (guestsStr?'<div class="signup-detail">+guests: '+guestsStr+'</div>':'') +
             (r.message?'<div class="signup-detail" style="color:rgba(255,107,0,0.4);font-style:italic">💬 '+r.message+'</div>':'') +
           '</div>' +
           '<div class="signup-actions"><button class="action-sm red" onclick="removeHWRSVP('+i+','+r.rowIndex+')">✗</button></div>' +
         '</div>';
       }).join('');
+    }
+
+    function manualAddRSVP(status) {
+      var name = document.getElementById('manual-rsvp-name').value.trim();
+      if (!name) { alert('Enter a name first.'); return; }
+      var payload = { action:'submit_halloween_rsvp', name:name, attending:status, guests:[], email:'', message:'[Added manually by admin]' };
+      fetch(SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(payload) })
+        .then(function(){
+          adminLog('✓ RSVP added: ' + name + ' (' + (status==='attending'?'Coming':'Not coming') + ')', 'success');
+          document.getElementById('manual-rsvp-name').value = '';
+          document.getElementById('manual-rsvp-result').textContent = '✓ Added ' + name;
+          setTimeout(function(){ loadRSVPs(); document.getElementById('manual-rsvp-result').textContent=''; }, 1200);
+        }).catch(function(){ adminLog('✗ Failed to add RSVP', 'error'); });
     }
 
     function removeHWRSVP(i, rowIndex) {
@@ -90,13 +105,7 @@
     function loadGames() {
       fetch(SCRIPT_URL+'?action=get_halloween_signups&game=mummy')
         .then(function(r){ return r.json(); })
-        .then(function(d){ if(d.success&&d.data){ renderMummyTeams(d.data); } }).catch(function(){});
-      fetch(SCRIPT_URL+'?action=get_halloween_signups&game=pumpkin')
-        .then(function(r){ return r.json(); })
-        .then(function(d){ if(d.success&&d.data){ _pumpkin=d.data; renderPumpkin(); } }).catch(function(){});
-      fetch(SCRIPT_URL+'?action=get_halloween_signups&game=flipcup')
-        .then(function(r){ return r.json(); })
-        .then(function(d){ if(d.success&&d.data){ _flipcup=d.data; renderFlipCup(); } }).catch(function(){});
+        .then(function(d){ if(d.success&&d.data){ _mummy=d.data; renderMummyTeams(_mummy); } }).catch(function(){});
     }
 
     function renderMummyTeams(data) {
@@ -104,37 +113,33 @@
       if (!el) return;
       if (!data || !data.length) { el.innerHTML='<div class="empty-msg">No teams yet.</div>'; return; }
       el.innerHTML = data.map(function(t,i){
+        var teamName = t.name||t.team||'Team '+(i+1);
         return '<div class="signup-row"><div class="signup-info">' +
-          '<div class="signup-name">🧻 '+(t.name||t.team)+'</div>' +
-          '<div class="signup-detail">'+(t.player1||'')+(t.player2?' · '+t.player2:'')+(t.player3?' · '+t.player3:'')+'</div></div></div>';
+          '<div class="signup-name">🧻 '+teamName+'</div>' +
+          '<div class="signup-detail">'+(t.player1||'')+(t.player2?' · '+t.player2:'')+(t.player3?' · '+t.player3:'')+'</div></div>' +
+          '<div class="signup-actions"><button class="action-sm red" onclick="removeHWMummy('+i+',''+teamName.replace(/'/g,'\')+'')">✗</button></div></div>';
       }).join('');
     }
 
-    function renderPumpkin() {
-      document.getElementById('hw-pc-count').textContent=_pumpkin.length;
-      var el=document.getElementById('hw-pc-list');
-      if(!_pumpkin.length){el.innerHTML='<div class="empty-msg">No carvers yet.</div>';return;}
-      el.innerHTML=_pumpkin.map(function(p,i){
-        return '<div class="signup-row"><div class="signup-info"><div class="signup-name">'+p.name+'</div><div class="signup-detail">'+(p.bringOwn?'🪣 Bringing own':'🎃 Using provided')+'</div></div>' +
-          '<div class="signup-actions"><button class="action-sm red" onclick="removeHWSignup(\'pumpkin\',\''+p.name+'\')">✗</button></div></div>';
-      }).join('');
+    function removeHWMummy(i, teamName) {
+      if (!confirm('Remove team "'+teamName+'" from Mummy Wrap?')) return;
+      _mummy.splice(i,1); renderMummyTeams(_mummy);
+      adminPost({ action:'halloween_remove_signup', game:'mummy', name:teamName }, function(d){ adminLog(d.success?'✓ Team removed':'✗ Sent (check sheet)','success'); });
     }
 
-    function renderFlipCup() {
-      document.getElementById('hw-fc-count').textContent=_flipcup.length;
-      var el=document.getElementById('hw-fc-list');
-      if(!_flipcup.length){el.innerHTML='<div class="empty-msg">No players yet.</div>';return;}
-      el.innerHTML=_flipcup.map(function(p,i){
-        return '<div class="signup-row"><div class="signup-info"><div class="signup-name">'+p.name+'</div></div>' +
-          '<div class="signup-actions"><button class="action-sm red" onclick="removeHWSignup(\'flipcup\',\''+p.name+'\')">✗</button></div></div>';
-      }).join('');
-    }
-
-    function removeHWSignup(game, name) {
-      if (!confirm('Remove "'+name+'" from '+game+'?')) return;
-      if (game==='pumpkin') { _pumpkin=_pumpkin.filter(function(p){return p.name!==name;}); renderPumpkin(); }
-      else { _flipcup=_flipcup.filter(function(p){return p.name!==name;}); renderFlipCup(); }
-      adminPost({ action:'halloween_remove_signup', game:game, name:name }, function(d){ adminLog(d.success?'✓ Removed':'✗ Failed',d.success?'success':'error'); });
+    function manualAddMummy() {
+      var team = document.getElementById('mummy-team-name').value.trim();
+      var p1 = document.getElementById('mummy-p1').value.trim();
+      var p2 = document.getElementById('mummy-p2').value.trim();
+      var p3 = document.getElementById('mummy-p3').value.trim();
+      if (!team || !p1) { alert('Team name and Player 1 are required.'); return; }
+      var payload = { action:'submit_halloween_signup', game:'mummy', team:team, player1:p1, player2:p2, player3:p3 };
+      fetch(SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify(payload) })
+        .then(function(){
+          adminLog('✓ Mummy team added: ' + team, 'success');
+          ['mummy-team-name','mummy-p1','mummy-p2','mummy-p3'].forEach(function(id){ document.getElementById(id).value=''; });
+          setTimeout(function(){ loadGames(); }, 1000);
+        }).catch(function(){ adminLog('✗ Failed to add team', 'error'); });
     }
 
     // ── VOTES ──
@@ -212,16 +217,16 @@
     function addGhost(name) {
       if (!name) return;
       _ghostData[name] = (_ghostData[name] || 0) + 1;
-      fetch(SCRIPT_URL + '?action=halloween_tally_ghost&name=' + encodeURIComponent(name) + '&delta=1')
-        .then(function(r){ return r.json(); })
-        .then(function(d){ adminLog(d.success ? '✓ Ghost: ' + name + ' → ' + d.count : '✗ Failed', d.success?'success':'error'); renderGhostAdmin(); }).catch(function(){});
+      fetch(SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'halloween_tally_ghost', name:name, delta:1}) })
+        .then(function(){ adminLog('✓ Ghost: ' + name + ' · ' + _ghostData[name] + ' found', 'success'); })
+        .catch(function(){ adminLog('✗ Ghost sync failed', 'error'); });
     }
     function removeGhost(name) {
       if (!name || !_ghostData[name]) return;
       _ghostData[name] = Math.max(0, _ghostData[name] - 1);
-      fetch(SCRIPT_URL + '?action=halloween_tally_ghost&name=' + encodeURIComponent(name) + '&delta=-1')
-        .then(function(r){ return r.json(); })
-        .then(function(d){ adminLog(d.success ? '↩ Ghost removed: ' + name : '✗ Failed', d.success?'success':'error'); renderGhostAdmin(); }).catch(function(){});
+      fetch(SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({action:'halloween_tally_ghost', name:name, delta:-1}) })
+        .then(function(){ adminLog('↩ Ghost removed: ' + name, 'success'); })
+        .catch(function(){ adminLog('✗ Ghost sync failed', 'error'); });
     }
     function addGhostCustom() {
       var name = document.getElementById('ghost-custom-name').value.trim();
@@ -395,6 +400,15 @@
           <a class="sheet-link" href="https://docs.google.com/spreadsheets/d/1PkeFrm-sCJwgM_MtkKiMw6B93tYnyTx6XltJWHNdHqs/edit" target="_blank">📊 VIEW SHEET →</a>
           <div id="hw-rsvp-list"><div class="empty-msg">Loading...</div></div>
         </div>
+        <div class="section">
+          <h2>➕ Add RSVP Manually</h2>
+          <input id="manual-rsvp-name" class="form-input" placeholder="Name..." style="margin-bottom:8px"/>
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <button onclick="manualAddRSVP('attending')" style="flex:1;padding:11px;background:rgba(0,255,136,0.12);border:1px solid rgba(0,255,136,0.3);color:#00ff88;font-family:Bebas Neue,sans-serif;font-size:13px;letter-spacing:2px;cursor:pointer">✓ COMING</button>
+            <button onclick="manualAddRSVP('notattending')" style="flex:1;padding:11px;background:rgba(255,68,68,0.12);border:1px solid rgba(255,68,68,0.3);color:#ff4444;font-family:Bebas Neue,sans-serif;font-size:13px;letter-spacing:2px;cursor:pointer">✗ NOT COMING</button>
+          </div>
+          <div id="manual-rsvp-result" style="font-size:11px;color:#00ff88;min-height:16px"></div>
+        </div>
       </div>
 
       <!-- GAMES -->
@@ -402,6 +416,14 @@
         <div class="section">
           <h2>🧻 Mummy Wrap Teams <button class="refresh-btn" onclick="loadGames()">↻</button></h2>
           <div id="hw-mummy-list"><div class="empty-msg">Loading...</div></div>
+        </div>
+        <div class="section">
+          <h2>➕ Add Mummy Team Manually</h2>
+          <input id="mummy-team-name" class="form-input" placeholder="Team name..." style="margin-bottom:8px"/>
+          <input id="mummy-p1" class="form-input" placeholder="Player 1 (required)..." style="margin-bottom:8px"/>
+          <input id="mummy-p2" class="form-input" placeholder="Player 2..." style="margin-bottom:8px"/>
+          <input id="mummy-p3" class="form-input" placeholder="Player 3 (optional)..." style="margin-bottom:8px"/>
+          <button onclick="manualAddMummy()" style="width:100%;padding:12px;background:var(--orange);border:none;color:#120300;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:3px;cursor:pointer">ADD TEAM →</button>
         </div>
         <div class="section">
           <h2>👻 Ghost Hunt Tally <button class="refresh-btn" onclick="loadGhostAdmin()">↻</button></h2>
@@ -427,17 +449,7 @@
         </div>
         <div class="section">
           <h2>🎃 Pumpkin Carving</h2>
-          <div class="stats-row">
-            <div class="stat"><div class="stat-val" id="hw-pc-count">0</div><div class="stat-label">Carvers</div></div>
-          </div>
-          <div id="hw-pc-list"><div class="empty-msg">Loading...</div></div>
-        </div>
-        <div class="section">
-          <h2>🍺 Flip Cup</h2>
-          <div class="stats-row">
-            <div class="stat"><div class="stat-val" id="hw-fc-count">0</div><div class="stat-label">Players</div></div>
-          </div>
-          <div id="hw-fc-list"><div class="empty-msg">Loading...</div></div>
+          <div class="section-sub">No sign-up — first come, first serve. Winner announced at 10PM. Prize: tequila 🥃</div>
         </div>
       </div>
 

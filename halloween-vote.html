@@ -71,20 +71,19 @@
       if (btn) { btn.textContent = '↻'; btn.disabled = true; }
       var nomReq = fetch(SCRIPT_URL + '?action=get_halloween_nominees').then(function(r){ return r.json(); });
       var voteReq = fetch(SCRIPT_URL + '?action=get_halloween_votes').then(function(r){ return r.json(); });
-      nomReq.then(function(d){
-        if (d.success && d.data) {
-          nominees = d.data.map(function(n){ return { name:n.name, character:n.character, votes:0 }; });
+      Promise.all([nomReq, voteReq]).then(function(results){
+        var nomData = results[0], voteData = results[1];
+        if (nomData.success && nomData.data) {
+          nominees = nomData.data.map(function(n){ return { name:n.name, character:n.character, votes:0 }; });
         }
-      }).catch(function(){});
-      voteReq.then(function(d){
-        if (d.success && d.data) {
-          Object.keys(d.data).forEach(function(name){
+        if (voteData.success && voteData.data) {
+          Object.keys(voteData.data).forEach(function(name){
             var n = nominees.find(function(x){ return x.name === name; });
-            if (n) n.votes = d.data[name];
+            if (n) n.votes = voteData.data[name];
           });
-          nominees.sort(function(a,b){ return b.votes - a.votes; });
-          renderVoteList();
         }
+        nominees.sort(function(a,b){ return b.votes - a.votes; });
+        renderVoteList();
         if (btn) { btn.textContent = '↻ Refresh'; btn.disabled = false; }
       }).catch(function(){
         if (btn) { btn.textContent = '↻ Refresh'; btn.disabled = false; }
