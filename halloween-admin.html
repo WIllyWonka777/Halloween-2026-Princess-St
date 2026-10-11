@@ -13,7 +13,7 @@
     }
     var SHEET_ID = "1PkeFrm-sCJwgM_MtkKiMw6B93tYnyTx6XltJWHNdHqs";
     var _rsvps = [], _mummy = [], _nominees = [], _votes = {};
-    var _suggestions = [];
+    var _suggestions = [], _bingo = [];
     function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
     function adminPost(data, callback) {
@@ -51,7 +51,7 @@
     }
 
     function loadAll() {
-      loadRSVPs(); loadGames(); loadVotes(); loadSuggestions(); loadGhostAdmin();
+      loadRSVPs(); loadGames(); loadVotes(); loadSuggestions(); loadBingo();
       adminLog('Loading all sections...', 'info');
     }
 
@@ -97,42 +97,23 @@
             (r.message?'<div class="signup-detail" style="color:rgba(255,107,0,0.4);font-style:italic">💬 '+esc(r.message)+'</div>':'')+
           '</div>'+
           '<div class="signup-actions">'+
-            (isIn && !isPaid ? '<button class="action-sm green" title="Mark as paid" onclick="markPaid(\''+esc(r.name)+'\','+r.rowIndex+',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\')">💳 Paid</button>' : '')+
-            (isIn && isPaid && !r.ticket_code ? '<button class="action-sm ticket" title="Send ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\')">🎟️ Send Ticket</button>' : '')+
-            (isIn && isPaid && r.ticket_code ? '<button class="action-sm ticket" title="Resend ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\',\''+esc(r.ticket_code)+'\')">🔁 Resend</button>' : '')+
+            (isIn?'<button class="action-sm ticket" title="Send ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\')">🎟️</button>':'')+
             '<button class="action-sm red" onclick="removeHWRSVP('+i+','+r.rowIndex+')">✗</button>'+
           '</div>'+
         '</div>';
       }).join('');
     }
 
-    function markPaid(name, rowIndex, email, guests) {
-      if (!confirm('Mark ' + name + ' as PAID?\n\nThis updates the sheet. You can then send their ticket.')) return;
-      adminLog('⏳ Marking ' + name + ' as paid...', 'info');
-      fetch(SCRIPT_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'mark_hw_paid', rowIndex: rowIndex, name: name })
-      }).then(function() {
-        adminLog('💳 ' + name + ' marked as paid. Reloading...', 'success');
-        setTimeout(function(){ loadRSVPs(); }, 3000);
-      }).catch(function(){ adminLog('✗ Connection error — not marked', 'error'); });
-    }
-
-    function sendTicket(name, email, guests, existingCode) {
+    function sendTicket(name, email) {
       if (!email) {
         email = prompt('No email on file for ' + name + '.\nEnter their email address:');
         if (!email || !email.trim()) { adminLog('✗ Cancelled — no email entered', 'error'); return; }
         email = email.trim();
         if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ adminLog('✗ Invalid email address', 'error'); return; }
       }
-      if (existingCode) {
-        if (!confirm('⚠️ RESEND TICKET — ' + name + '\n' + email + '\n\nExisting code: ' + existingCode + '\n\nThis sends a new email with the SAME code.\nThe code is still valid — no change to their access.')) return;
-      } else {
-        if (!confirm('Send ticket email to:\n\n' + name + '\n' + email + '\n\nIncludes entry code + guest list + venue instructions.')) return;
-      }
+      if (!confirm('Send Halloween ticket to:\n\n' + name + '\n' + email + '\n\nThis emails them their unique entry code.')) return;
       adminLog('⏳ Sending ticket to ' + name + '...', 'info');
-      fetch(SCRIPT_URL + '?action=send_ticket&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email) + '&guests=' + encodeURIComponent(guests || ''))
+      fetch(SCRIPT_URL + '?action=send_ticket&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email))
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (d.success) {
@@ -143,30 +124,6 @@
           }
         }).catch(function(){ adminLog('✗ Connection error — ticket not sent', 'error'); });
     }
-
-    function verifyTicket() {
-      var code = document.getElementById('verify-code-input').value.trim().toUpperCase();
-      var el = document.getElementById('verify-result');
-      if (!code) { el.innerHTML = ''; return; }
-      var match = _rsvps.find(function(r){ return r.ticket_code && r.ticket_code.toUpperCase() === code; });
-      if (match) {
-        var g = (match.guests && match.guests.length) ? match.guests.filter(Boolean) : [];
-        el.innerHTML = '<div style="background:rgba(0,255,136,0.07);border:2px solid rgba(0,255,136,0.45);padding:18px;margin-top:10px;text-align:center">' +
-          '<div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#00ff88;letter-spacing:3px">✓ VALID</div>' +
-          '<div style="font-size:18px;color:var(--cream);margin-top:6px;font-family:Bebas Neue,sans-serif;letter-spacing:2px">' + esc(match.name) + '</div>' +
-          (g.length ? '<div style="font-size:12px;color:rgba(255,245,224,0.5);margin-top:5px">+' + g.length + ' guest' + (g.length>1?'s':'') + ': ' + g.map(esc).join(', ') + '</div>' : '') +
-          '<div style="font-family:monospace;font-size:10px;color:rgba(0,255,136,0.4);margin-top:8px;letter-spacing:3px">' + esc(code) + '</div>' +
-          '</div>';
-      } else {
-        el.innerHTML = '<div style="background:rgba(255,68,68,0.07);border:2px solid rgba(255,68,68,0.4);padding:18px;margin-top:10px;text-align:center">' +
-          '<div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#ff4444;letter-spacing:3px">✗ INVALID</div>' +
-          '<div style="font-size:12px;color:rgba(255,245,224,0.35);margin-top:5px">Code not found in guest list</div>' +
-          '</div>';
-      }
-    }
-    document.addEventListener('keyup', function(e){
-      if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'verify-code-input') verifyTicket();
-    });
 
     function manualAddRSVP(status) {
       var name = document.getElementById('manual-rsvp-name').value.trim();
@@ -368,6 +325,25 @@
         }).catch(function(){ adminLog('✗ Connection error', 'error'); });
     }
 
+    // ── BINGO ──
+    function loadBingo() {
+      fetch(SCRIPT_URL+'?action=get_halloween_bingo')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d.success) return;
+          _bingo = d.data || [];
+          var el = document.getElementById('hw-bingo-list');
+          if (!el) return;
+          if (!_bingo.length) { el.innerHTML='<div class="empty-msg">No bingo wins yet.</div>'; return; }
+          el.innerHTML = _bingo.map(function(b, i) {
+            var ts = b.timestamp ? new Date(b.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+            return '<div class="signup-row"><div class="signup-info">' +
+              '<div class="signup-name">'+(i===0?'🎃 ':'')+esc(b.name||'Unknown')+'</div>' +
+              '<div class="signup-detail">'+esc(b.pattern||'Line')+(ts?' · '+ts:'')+'</div></div></div>';
+          }).join('');
+        }).catch(function(){});
+    }
+
     function loadSuggestions() {
       fetch(SCRIPT_URL+'?action=get_halloween_suggestions')
         .then(function(r){return r.json();})
@@ -426,7 +402,6 @@
     .action-sm{padding:5px 10px;font-size:9px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;border:none;transition:all .2s;}
     .action-sm.red{background:rgba(255,68,68,0.15);color:var(--red);border:1px solid rgba(255,68,68,0.3);}
     .action-sm.ticket{background:rgba(245,197,24,0.1);color:#f5c518;border:1px solid rgba(245,197,24,0.3);}
-    .action-sm.green{background:rgba(107,204,107,0.12);color:#6bcc6b;border:1px solid rgba(107,204,107,0.3);}
     .status-paid{background:rgba(245,197,24,0.1);color:#f5c518;border:1px solid rgba(245,197,24,0.3);}
     .status-badge{font-size:8px;letter-spacing:1px;padding:2px 8px;border-radius:2px;}
     .status-in{background:rgba(0,255,136,0.1);color:#00ff88;border:1px solid rgba(0,255,136,0.3);}
@@ -493,15 +468,6 @@
           <div id="hw-rsvp-list"><div class="empty-msg">Loading...</div></div>
         </div>
         <div class="section">
-          <h2>🔍 Verify Ticket at Door</h2>
-          <div class="section-sub">Type or paste a guest's code — confirm it's legit before letting them in.</div>
-          <div style="display:flex;gap:8px">
-            <input id="verify-code-input" class="form-input" placeholder="HW26-XXXXXX" style="margin-bottom:0;flex:1;font-family:monospace;letter-spacing:4px;text-transform:uppercase"/>
-            <button onclick="verifyTicket()" style="padding:10px 16px;background:var(--orange);border:none;color:#120300;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;flex-shrink:0">CHECK →</button>
-          </div>
-          <div id="verify-result"></div>
-        </div>
-        <div class="section">
           <h2>➕ Add RSVP Manually</h2>
           <input id="manual-rsvp-name" class="form-input" placeholder="Name..." style="margin-bottom:8px"/>
           <input id="manual-rsvp-email" class="form-input" placeholder="Email (optional — needed to send ticket)..." style="margin-bottom:8px"/>
@@ -528,17 +494,9 @@
           <button onclick="manualAddMummy()" style="width:100%;padding:12px;background:var(--orange);border:none;color:#120300;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:3px;cursor:pointer">ADD TEAM →</button>
         </div>
         <div class="section">
-          <h2>👻 Ghost Hunt Tally <button class="refresh-btn" onclick="loadGhostAdmin()">↻</button></h2>
-          <div class="section-sub">50 ghosts hidden. Tap + to add a ghost found, − to undo. Leaderboard live on guests' phones every 15s.</div>
-          <div class="stats-row">
-            <div class="stat"><div class="stat-val" id="hw-ghost-total">0</div><div class="stat-label">Found</div></div>
-            <div class="stat"><div class="stat-val" id="hw-ghost-remaining">50</div><div class="stat-label">Remaining</div></div>
-          </div>
-          <div style="display:flex;gap:8px;margin-bottom:12px">
-            <input id="ghost-custom-name" class="form-input" placeholder="Guest name..." style="margin-bottom:0;flex:1"/>
-            <button onclick="addGhostCustom()" style="padding:10px 16px;background:var(--orange);border:none;color:#120300;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;flex-shrink:0">ADD 👻</button>
-          </div>
-          <div id="hw-ghost-list"><div class="empty-msg">No ghosts found yet.</div></div>
+          <h2>🎯 Bingo Winners <button class="refresh-btn" onclick="loadBingo()">↻</button></h2>
+          <div class="section-sub">Guests who self-reported a bingo win. First one on the list gets the pumpkin of candy 🎃</div>
+          <div id="hw-bingo-list"><div class="empty-msg">No wins yet.</div></div>
         </div>
         <div class="section">
           <h2>🍬 Cursed Jar</h2>

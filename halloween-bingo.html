@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Social Bingo — Halloween 2026</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <script>
+    var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9YYvDxU880oswA5oRKOpPW3TztUrJ0V0ic1OQMauReZPK03b8uNeZngX8WiCjzi-L/exec";
+
+    var ALL_SQUARES = [
+      { e:"🌍", t:"From another\ncountry" },
+      { e:"🎭", t:"Selfie with\nfull face paint" },
+      { e:"✂️", t:"Made their\nown costume" },
+      { e:"👑", t:"Selfie with\nEduardo (host)" },
+      { e:"💑", t:"Find a\ncouples costume" },
+      { e:"📸", t:"3 strangers\nin one photo" },
+      { e:"🏆", t:"Costume that\nwon a prize" },
+      { e:"😈", t:"Get a full\nscary laugh" },
+      { e:"🔤", t:"Same first letter\nin your name" },
+      { e:"👻", t:"Get a ghost\nstory from someone" },
+      { e:"🎃", t:"Carves pumpkins\nevery year" },
+      { e:"🍬", t:"3 people say\ntrick or treat" },
+      { e:"🎂", t:"Born in\nOctober" },
+      { e:"✈️", t:"Traveled the\nfarthest tonight" },
+      { e:"📸", t:"Group selfie\nwith 5+ people" },
+      { e:"🔦", t:"Watches horror\nwith lights OFF" },
+      { e:"💃", t:"Teaches you\na scary dance" },
+      { e:"🏚️", t:"Haunted house\nthis year" },
+      { e:"🤝", t:"Introduce 2\nstrangers together" },
+      { e:"📽️", t:"Costume from\na pre-2000 film" },
+      { e:"🎬", t:"Seen every\nHalloween movie" },
+      { e:"🖤", t:"Photo with a\nfull black costume" },
+      { e:"🧙", t:"Get a witch\ncackle from someone" },
+      { e:"💇", t:"Someone wearing\na wig tonight" }
+    ];
+
+    var _playerName = '';
+    var _squares = [];
+    var _marked = [];
+    var _won = false;
+    var _winPattern = '';
+
+    function shuffle(arr) {
+      var a = arr.slice();
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a;
+    }
+
+    function initCard() {
+      var name = document.getElementById('player-name').value.trim();
+      if (!name) { showNameErr('Enter your name first 👻'); return; }
+      _playerName = name;
+
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem('hw26_bingo_' + name.toLowerCase())); } catch(e){}
+
+      if (saved && saved.squares && saved.marked && saved.squares.length === 25) {
+        _squares = saved.squares;
+        _marked = saved.marked;
+        _won = saved.won || false;
+      } else {
+        var shuffled = shuffle(ALL_SQUARES);
+        _squares = [];
+        for (var i = 0; i < 12; i++) _squares.push(shuffled[i]);
+        _squares.push(null); // FREE at index 12
+        for (var i = 12; i < 24; i++) _squares.push(shuffled[i]);
+        _marked = new Array(25).fill(false);
+        _marked[12] = true;
+      }
+
+      saveCard();
+      document.getElementById('name-step').style.display = 'none';
+      document.getElementById('card-step').style.display = 'block';
+      buildGrid();       // creates DOM cells with correct marked state
+      updateProgress();  // update progress bar
+      if (_won) { showWinSilent(); }
+    }
+
+    function buildGrid() {
+      var grid = document.getElementById('bingo-grid');
+      grid.innerHTML = '';
+      for (var i = 0; i < 25; i++) {
+        var cell = document.createElement('div');
+        cell.setAttribute('data-idx', i);
+
+        if (i === 12) {
+          cell.className = 'bingo-cell free-cell';
+          cell.innerHTML = '<div class="cell-emoji">🎃</div><div class="cell-text-free">FREE</div>';
+        } else {
+          var sq = _squares[i] || { e:'?', t:'?' };
+          var markedClass = _marked[i] ? ' marked' : '';
+          cell.className = 'bingo-cell' + markedClass;
+          var checkmark = _marked[i] ? '<div class="cell-check">✓</div>' : '';
+          cell.innerHTML = checkmark + '<div class="cell-emoji">' + sq.e + '</div><div class="cell-text">' + sq.t.replace(/\n/g,'<br>') + '</div>';
+          (function(idx) {
+            cell.addEventListener('click', function() { toggleSquare(idx); });
+          })(i);
+        }
+        grid.appendChild(cell);
+      }
+      document.getElementById('card-name-display').textContent = _playerName.toUpperCase() + "'S CARD";
+    }
+
+    function toggleSquare(idx) {
+      if (idx === 12) return;
+      _marked[idx] = !_marked[idx];
+      saveCard();
+      // Update just this cell
+      var cell = document.querySelector('.bingo-cell[data-idx="'+idx+'"]');
+      if (cell) {
+        var sq = _squares[idx] || { e:'?', t:'?' };
+        if (_marked[idx]) {
+          cell.className = 'bingo-cell marked';
+          cell.innerHTML = '<div class="cell-check">✓</div><div class="cell-emoji">' + sq.e + '</div><div class="cell-text">' + sq.t.replace(/\n/g,'<br>') + '</div>';
+        } else {
+          cell.className = 'bingo-cell';
+          cell.innerHTML = '<div class="cell-emoji">' + sq.e + '</div><div class="cell-text">' + sq.t.replace(/\n/g,'<br>') + '</div>';
+        }
+        (function(i) { cell.addEventListener('click', function(){ toggleSquare(i); }); })(idx);
+      }
+      updateProgress();
+      if (!_won) checkWin();
+    }
+
+    var WIN_LINES = [
+      { label:'Row 1', idx:[0,1,2,3,4] },
+      { label:'Row 2', idx:[5,6,7,8,9] },
+      { label:'Row 3', idx:[10,11,12,13,14] },
+      { label:'Row 4', idx:[15,16,17,18,19] },
+      { label:'Row 5', idx:[20,21,22,23,24] },
+      { label:'Column 1', idx:[0,5,10,15,20] },
+      { label:'Column 2', idx:[1,6,11,16,21] },
+      { label:'Column 3', idx:[2,7,12,17,22] },
+      { label:'Column 4', idx:[3,8,13,18,23] },
+      { label:'Column 5', idx:[4,9,14,19,24] },
+      { label:'Diagonal', idx:[0,6,12,18,24] },
+      { label:'Diagonal', idx:[4,8,12,16,20] }
+    ];
+
+    function checkWin() {
+      for (var l = 0; l < WIN_LINES.length; l++) {
+        var line = WIN_LINES[l];
+        var complete = line.idx.every(function(i){ return _marked[i]; });
+        if (complete) {
+          _won = true;
+          _winPattern = line.label;
+          saveCard();
+          // Flash winning cells
+          line.idx.forEach(function(i){
+            var cell = document.querySelector('.bingo-cell[data-idx="'+i+'"]');
+            if (cell) { cell.classList.add('win-cell'); }
+          });
+          setTimeout(function(){ showWin(); }, 700);
+          return;
+        }
+      }
+    }
+
+    function showWin() {
+      document.getElementById('win-name-input').value = _playerName;
+      document.getElementById('win-overlay').style.display = 'flex';
+      startSpookles();
+    }
+    function showWinSilent() {
+      document.getElementById('win-name-input').value = _playerName;
+      document.getElementById('win-overlay').style.display = 'flex';
+    }
+    function closeWin() { document.getElementById('win-overlay').style.display = 'none'; }
+
+    function submitWin() {
+      var name = document.getElementById('win-name-input').value.trim() || _playerName;
+      var btn = document.getElementById('win-submit-btn');
+      btn.textContent = 'Submitting...'; btn.disabled = true;
+      fetch(SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors', headers: {'Content-Type': 'text/plain'},
+        body: JSON.stringify({ action: 'halloween_bingo_win', name: name, pattern: _winPattern })
+      }).then(function(){
+        document.getElementById('win-form').style.display = 'none';
+        document.getElementById('win-submitted').style.display = 'block';
+      }).catch(function(){
+        document.getElementById('win-form').style.display = 'none';
+        document.getElementById('win-submitted').style.display = 'block';
+      });
+    }
+
+    function updateProgress() {
+      var count = 0;
+      for (var i = 0; i < 25; i++) { if (_marked[i]) count++; }
+      var pct = Math.round((count / 25) * 100);
+      var fill = document.getElementById('progress-fill');
+      var cnt = document.getElementById('marked-count');
+      if (fill) fill.style.width = pct + '%';
+      if (cnt) cnt.textContent = count + '/25 marked';
+    }
+
+    function saveCard() {
+      try {
+        localStorage.setItem('hw26_bingo_' + _playerName.toLowerCase(),
+          JSON.stringify({ squares: _squares, marked: _marked, won: _won }));
+      } catch(e){}
+    }
+
+    function showNameErr(msg) {
+      var el = document.getElementById('name-error');
+      el.textContent = msg; el.style.display = 'block';
+      setTimeout(function(){ el.style.display='none'; }, 2500);
+    }
+
+    function startSpookles() {
+      var icons = ['🎃','👻','🕷️','🦇','🕸️','💀','🍬','⚡','🌕'];
+      var container = document.getElementById('spookles');
+      container.innerHTML = '';
+      for (var i = 0; i < 28; i++) {
+        (function(i) {
+          setTimeout(function() {
+            var el = document.createElement('div');
+            el.className = 'spookle';
+            el.textContent = icons[Math.floor(Math.random() * icons.length)];
+            el.style.left = (Math.random() * 96) + '%';
+            el.style.animationDuration = (1.8 + Math.random() * 2.2) + 's';
+            el.style.fontSize = (14 + Math.floor(Math.random() * 16)) + 'px';
+            container.appendChild(el);
+            setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 5000);
+          }, i * 130);
+        })(i);
+      }
+    }
+
+    window.addEventListener('load', function(){
+      document.getElementById('player-name').addEventListener('keyup', function(e){
+        if (e.key === 'Enter') initCard();
+      });
+    });
+  </script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{--bg:#06000e;--bg2:#0c0018;--mid:#130025;--orange:#ff6b00;--cream:#f0d9c0;--gold:#f5c518;}
+    body{min-height:100vh;background:var(--bg);font-family:'DM Sans',sans-serif;overflow-x:hidden;color:var(--cream);}
+    body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,107,0,0.007) 3px,rgba(255,107,0,0.007) 4px);pointer-events:none;z-index:99;}
+    body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(100,0,180,0.15) 0%,transparent 65%);pointer-events:none;z-index:0;}
+    .film-strip-left,.film-strip-right{position:fixed;top:0;bottom:0;width:28px;background:var(--bg2);border-right:1px solid rgba(255,107,0,0.15);z-index:10;display:flex;flex-direction:column;justify-content:space-around;align-items:center;padding:10px 0;}
+    .film-strip-right{right:0;left:auto;border-right:none;border-left:1px solid rgba(255,107,0,0.15);}
+    .film-hole{width:12px;height:16px;background:var(--bg);border-radius:2px;border:1px solid rgba(255,107,0,0.15);flex-shrink:0;}
+    .container{max-width:500px;margin:0 auto;padding:0 10px;position:relative;z-index:2;}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+
+    /* Nav */
+    .nav{display:flex;gap:5px;padding:12px 0 0;}
+    .nav a{flex:1;padding:9px 3px;background:var(--mid);border:1px solid rgba(255,107,0,0.3);color:rgba(255,107,0,0.75);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;text-align:center;transition:all 0.2s;font-family:'Bebas Neue',sans-serif;}
+    .nav a:hover,.nav a.active{background:var(--orange);color:var(--bg);}
+
+    /* Header */
+    .page-header{padding:14px 0 12px;animation:fadeUp .5s ease-out;}
+    .page-tag{display:inline-block;background:rgba(245,184,0,0.1);border:1px solid rgba(255,107,0,0.3);color:var(--orange);font-size:9px;letter-spacing:4px;text-transform:uppercase;padding:4px 14px;margin-bottom:10px;}
+    .page-header h1{font-family:'Bebas Neue',sans-serif;font-size:30px;color:var(--cream);letter-spacing:3px;margin-bottom:2px;}
+    .page-header h1 span{color:var(--orange);}
+    .page-header .sub{font-size:11px;color:rgba(255,245,224,0.4);}
+
+    /* Name step */
+    .name-card{background:var(--mid);border:1px solid rgba(255,107,0,0.2);padding:20px;margin-bottom:12px;animation:fadeUp .5s ease-out;}
+    .name-card h2{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;color:var(--cream);margin-bottom:6px;}
+    .name-card .desc{font-size:12px;color:rgba(255,245,224,0.55);line-height:1.7;margin-bottom:14px;}
+    .prize-band{background:rgba(245,184,0,0.07);border:1px solid rgba(245,184,0,0.2);border-left:3px solid var(--gold);padding:10px 14px;font-size:12px;color:rgba(255,245,224,0.85);line-height:1.6;margin-bottom:14px;}
+    .prize-band strong{color:var(--gold);}
+    .name-input{width:100%;padding:13px 14px;background:rgba(0,0,0,0.4);border:1px solid rgba(255,107,0,0.3);color:var(--cream);font-family:'DM Sans',sans-serif;font-size:16px;outline:none;margin-bottom:10px;transition:border-color .2s;}
+    .name-input:focus{border-color:var(--orange);}
+    .name-input::placeholder{color:rgba(255,245,224,0.2);font-style:italic;}
+    .name-btn{width:100%;padding:14px;background:var(--orange);border:none;color:#120300;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;cursor:pointer;transition:all .2s;}
+    .name-btn:hover{background:#d45700;}
+    .name-error{display:none;font-size:11px;color:#ff6b6b;margin-top:6px;}
+    .how-to{background:rgba(0,0,0,0.2);border:1px solid rgba(255,107,0,0.1);padding:14px;margin-bottom:14px;animation:fadeUp .6s ease-out;}
+    .how-to-title{font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:3px;color:rgba(255,107,0,0.5);margin-bottom:10px;}
+    .how-to-item{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;font-size:12px;color:rgba(255,245,224,0.55);line-height:1.5;}
+    .how-to-item:last-child{margin-bottom:0;}
+    .how-to-num{font-family:'Bebas Neue',sans-serif;font-size:16px;color:rgba(255,107,0,0.4);flex-shrink:0;width:18px;}
+
+    /* Card step */
+    .card-step{display:none;animation:fadeUp .4s ease-out;}
+    .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 2px;}
+    .card-name{font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:3px;color:rgba(255,107,0,0.6);}
+    .card-reset-btn{font-size:10px;color:rgba(255,245,224,0.2);background:transparent;border:1px solid rgba(255,245,224,0.08);padding:3px 10px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;}
+
+    /* Bingo grid */
+    .bingo-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-bottom:10px;}
+    .bingo-cell{
+      min-height:66px;
+      padding:5px 3px 4px;
+      background:rgba(10,0,20,0.95);
+      border:1px solid rgba(255,107,0,0.15);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      cursor:pointer;
+      transition:background 0.15s, border-color 0.15s;
+      text-align:center;
+      position:relative;
+      user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      overflow:hidden;
+    }
+    .bingo-cell:active{opacity:0.7;}
+    .bingo-cell.marked{
+      background:rgba(255,107,0,0.1);
+      border-color:rgba(255,107,0,0.5);
+    }
+    .cell-check{
+      position:absolute;top:2px;right:3px;
+      font-size:9px;color:var(--orange);
+      font-family:'Bebas Neue',sans-serif;line-height:1;
+    }
+    .bingo-cell.free-cell{
+      background:rgba(245,184,0,0.07);
+      border-color:rgba(245,184,0,0.35);
+      cursor:default;
+    }
+    .bingo-cell.win-cell{
+      background:rgba(255,107,0,0.2) !important;
+      border-color:var(--orange) !important;
+      box-shadow:0 0 10px rgba(255,107,0,0.4);
+      animation:winPulse 0.5s ease-out;
+    }
+    @keyframes winPulse{0%{transform:scale(1);}50%{transform:scale(1.07);}100%{transform:scale(1);}}
+    .cell-emoji{font-size:17px;line-height:1.2;margin-bottom:2px;display:block;}
+    .cell-text{font-size:8px;color:rgba(255,245,224,0.65);line-height:1.4;letter-spacing:0.1px;display:block;}
+    .bingo-cell.marked .cell-text{color:rgba(255,245,224,0.85);}
+    .cell-text-free{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:3px;color:var(--gold);}
+
+    /* Progress */
+    .progress-wrap{margin-bottom:10px;padding:0 2px;}
+    .progress-row{display:flex;justify-content:space-between;font-size:10px;color:rgba(255,245,224,0.3);letter-spacing:0.5px;margin-bottom:4px;}
+    .progress-track{height:3px;background:rgba(255,255,255,0.05);border-radius:2px;}
+    .progress-fill{height:3px;background:var(--orange);border-radius:2px;transition:width 0.4s ease;}
+
+    .card-hint{font-size:10px;color:rgba(255,245,224,0.25);text-align:center;padding:6px 0 18px;line-height:1.6;}
+
+    /* Win overlay */
+    .win-overlay{
+      display:none;position:fixed;inset:0;
+      background:rgba(6,0,14,0.97);z-index:200;
+      flex-direction:column;align-items:center;justify-content:center;
+      padding:20px;text-align:center;
+    }
+    .win-box{max-width:340px;width:100%;}
+    .win-icon{font-size:60px;margin-bottom:6px;animation:winBounce 0.5s ease-out;}
+    @keyframes winBounce{0%{transform:scale(0.4);opacity:0;}70%{transform:scale(1.1);}100%{transform:scale(1);opacity:1;}}
+    .win-title{font-family:'Bebas Neue',sans-serif;font-size:56px;color:var(--orange);letter-spacing:5px;line-height:1;margin-bottom:4px;}
+    .win-sub{font-size:13px;color:rgba(255,245,224,0.65);margin-bottom:4px;line-height:1.6;}
+    .win-prize{background:rgba(245,184,0,0.09);border:1px solid rgba(245,184,0,0.25);border-left:3px solid var(--gold);padding:12px 16px;margin:14px 0;font-size:13px;color:rgba(255,245,224,0.9);line-height:1.65;text-align:left;}
+    .win-prize strong{color:var(--gold);}
+    .win-claim-note{font-size:12px;color:rgba(255,245,224,0.5);margin-bottom:14px;line-height:1.6;}
+    .win-label{font-size:10px;color:rgba(255,245,224,0.35);letter-spacing:1px;margin-bottom:7px;}
+    .win-input{width:100%;padding:13px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,107,0,0.4);color:var(--cream);font-family:'DM Sans',sans-serif;font-size:16px;text-align:center;outline:none;margin-bottom:10px;}
+    .win-btn{width:100%;padding:14px;background:var(--orange);border:none;color:#120300;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;cursor:pointer;margin-bottom:8px;}
+    .win-btn:disabled{opacity:0.5;cursor:default;}
+    .win-skip{width:100%;padding:10px;background:transparent;border:1px solid rgba(255,245,224,0.08);color:rgba(255,245,224,0.25);font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;cursor:pointer;}
+    .win-submitted{display:none;padding:16px;background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.2);font-size:13px;color:#00ff88;line-height:1.8;}
+
+    /* Spookles */
+    #spookles{position:fixed;inset:0;pointer-events:none;z-index:201;overflow:hidden;}
+    .spookle{position:absolute;top:-40px;animation:fallDown linear forwards;}
+    @keyframes fallDown{from{top:-50px;opacity:1;transform:rotate(-10deg);}to{top:110vh;opacity:0;transform:rotate(340deg);}}
+  </style>
+</head>
+<body>
+  <div class="film-strip-left"><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div></div>
+  <div class="film-strip-right"><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div><div class="film-hole"></div></div>
+  <div id="spookles"></div>
+
+  <div class="container">
+    <nav class="nav">
+      <a href="halloween-index.html"><div style="font-size:15px;margin-bottom:2px">🎃</div>Invite</a>
+      <a href="halloween-games.html"><div style="font-size:15px;margin-bottom:2px">🔪</div>Games</a>
+      <a href="halloween-bingo.html" class="active"><div style="font-size:15px;margin-bottom:2px">🎯</div>Bingo</a>
+      <a href="halloween-vote.html"><div style="font-size:15px;margin-bottom:2px">👑</div>Vote</a>
+      <a href="halloween-afterparty.html"><div style="font-size:15px;margin-bottom:2px">🌙</div>After</a>
+    </nav>
+
+    <div class="page-header">
+      <div class="page-tag">🎯 Oct 31 · Social Bingo</div>
+      <h1>Halloween <span>Bingo</span></h1>
+      <div class="sub">Complete a line — row, column, or diagonal</div>
+    </div>
+
+    <!-- STEP 1: Name entry -->
+    <div id="name-step">
+      <div class="name-card">
+        <h2>Get Your Card</h2>
+        <div class="desc">Each player gets a unique shuffled card. Complete the challenges by meeting people at the party — get a full line and shout BINGO! 🎃</div>
+        <div class="prize-band">🍬 <strong>Prize:</strong> First winner takes home a pumpkin stuffed with candy 🎃</div>
+        <input class="name-input" id="player-name" type="text" maxlength="30" placeholder="Your name..."/>
+        <div class="name-error" id="name-error"></div>
+        <button class="name-btn" onclick="initCard()">GET MY CARD 🎯</button>
+      </div>
+      <div class="how-to">
+        <div class="how-to-title">How To Play</div>
+        <div class="how-to-item"><div class="how-to-num">1</div><div>Enter your name to get your unique randomized card</div></div>
+        <div class="how-to-item"><div class="how-to-num">2</div><div>Mingle and complete challenges — tap a square when you've done it</div></div>
+        <div class="how-to-item"><div class="how-to-num">3</div><div>Get a complete row, column, or diagonal — center is always FREE 🎃</div></div>
+        <div class="how-to-item"><div class="how-to-num">4</div><div>Shout BINGO and find Eduardo to claim your pumpkin full of candy 🍬</div></div>
+      </div>
+    </div>
+
+    <!-- STEP 2: Bingo Card -->
+    <div id="card-step" class="card-step">
+      <div class="card-header">
+        <div class="card-name" id="card-name-display">YOUR CARD</div>
+        <button class="card-reset-btn" onclick="if(confirm('Reset your card? Progress will be lost.')){try{localStorage.removeItem('hw26_bingo_'+_playerName.toLowerCase());}catch(e){} document.getElementById('card-step').style.display='none'; document.getElementById('name-step').style.display='block'; document.getElementById('player-name').value=''; _playerName=''; _won=false;}">↺ New Card</button>
+      </div>
+
+      <div class="bingo-grid" id="bingo-grid"></div>
+
+      <div class="progress-wrap">
+        <div class="progress-row">
+          <span id="marked-count">1/25 marked</span>
+          <span style="color:rgba(245,184,0,0.5)">CENTER IS FREE 🎃</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:4%"></div></div>
+      </div>
+
+      <div class="card-hint">Tap a square to mark it done. Your card saves automatically — re-enter your name to restore it if you leave.</div>
+    </div>
+  </div>
+
+  <!-- Win Overlay -->
+  <div class="win-overlay" id="win-overlay">
+    <div class="win-box">
+      <div class="win-icon">🎃</div>
+      <div class="win-title">BINGO!</div>
+      <div class="win-sub">You completed a line — that's what we're talking about 💀</div>
+      <div class="win-prize">🍬 <strong>Prize: A Pumpkin Full of Candy</strong><br>Find Eduardo and show him this screen. First come, first served.</div>
+      <div id="win-form">
+        <div class="win-label">CONFIRM YOUR NAME TO REGISTER THE WIN</div>
+        <input class="win-input" id="win-name-input" type="text" placeholder="Your name..."/>
+        <button class="win-btn" id="win-submit-btn" onclick="submitWin()">🎃 CLAIM MY WIN</button>
+        <button class="win-skip" onclick="closeWin()">CLOSE — I'LL FIND EDUARDO FIRST</button>
+      </div>
+      <div id="win-submitted" class="win-submitted">
+        ✓ Win registered! Go find Eduardo and show him this screen 🎃<br><br>
+        <button onclick="closeWin()" style="background:transparent;border:1px solid rgba(0,255,136,0.3);color:#00ff88;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;padding:8px 20px;cursor:pointer">BACK TO MY CARD</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
