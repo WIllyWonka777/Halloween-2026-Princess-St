@@ -99,7 +99,7 @@
           '<div class="signup-actions">'+
             (isIn && !isPaid ? '<button class="action-sm green" title="Mark as paid" onclick="markPaid(\''+esc(r.name)+'\','+r.rowIndex+',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\')">💳 Paid</button>' : '')+
             (isIn && isPaid && !r.ticket_code ? '<button class="action-sm ticket" title="Send ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\')">🎟️ Send Ticket</button>' : '')+
-            (isIn && isPaid && r.ticket_code ? '<button class="action-sm ticket" title="Resend ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\')">🔁 Resend</button>' : '')+
+            (isIn && isPaid && r.ticket_code ? '<button class="action-sm ticket" title="Resend ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\',\''+esc(r.ticket_code)+'\')">🔁 Resend</button>' : '')+
             '<button class="action-sm red" onclick="removeHWRSVP('+i+','+r.rowIndex+')">✗</button>'+
           '</div>'+
         '</div>';
@@ -119,14 +119,18 @@
       }).catch(function(){ adminLog('✗ Connection error — not marked', 'error'); });
     }
 
-    function sendTicket(name, email, guests) {
+    function sendTicket(name, email, guests, existingCode) {
       if (!email) {
         email = prompt('No email on file for ' + name + '.\nEnter their email address:');
         if (!email || !email.trim()) { adminLog('✗ Cancelled — no email entered', 'error'); return; }
         email = email.trim();
         if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ adminLog('✗ Invalid email address', 'error'); return; }
       }
-      if (!confirm('Send ticket email to:\n\n' + name + '\n' + email + '\n\nIncludes entry code + guest list + venue instructions.')) return;
+      if (existingCode) {
+        if (!confirm('⚠️ RESEND TICKET — ' + name + '\n' + email + '\n\nExisting code: ' + existingCode + '\n\nThis sends a new email with the SAME code.\nThe code is still valid — no change to their access.')) return;
+      } else {
+        if (!confirm('Send ticket email to:\n\n' + name + '\n' + email + '\n\nIncludes entry code + guest list + venue instructions.')) return;
+      }
       adminLog('⏳ Sending ticket to ' + name + '...', 'info');
       fetch(SCRIPT_URL + '?action=send_ticket&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email) + '&guests=' + encodeURIComponent(guests || ''))
         .then(function(r){ return r.json(); })
@@ -139,6 +143,30 @@
           }
         }).catch(function(){ adminLog('✗ Connection error — ticket not sent', 'error'); });
     }
+
+    function verifyTicket() {
+      var code = document.getElementById('verify-code-input').value.trim().toUpperCase();
+      var el = document.getElementById('verify-result');
+      if (!code) { el.innerHTML = ''; return; }
+      var match = _rsvps.find(function(r){ return r.ticket_code && r.ticket_code.toUpperCase() === code; });
+      if (match) {
+        var g = (match.guests && match.guests.length) ? match.guests.filter(Boolean) : [];
+        el.innerHTML = '<div style="background:rgba(0,255,136,0.07);border:2px solid rgba(0,255,136,0.45);padding:18px;margin-top:10px;text-align:center">' +
+          '<div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#00ff88;letter-spacing:3px">✓ VALID</div>' +
+          '<div style="font-size:18px;color:var(--cream);margin-top:6px;font-family:Bebas Neue,sans-serif;letter-spacing:2px">' + esc(match.name) + '</div>' +
+          (g.length ? '<div style="font-size:12px;color:rgba(255,245,224,0.5);margin-top:5px">+' + g.length + ' guest' + (g.length>1?'s':'') + ': ' + g.map(esc).join(', ') + '</div>' : '') +
+          '<div style="font-family:monospace;font-size:10px;color:rgba(0,255,136,0.4);margin-top:8px;letter-spacing:3px">' + esc(code) + '</div>' +
+          '</div>';
+      } else {
+        el.innerHTML = '<div style="background:rgba(255,68,68,0.07);border:2px solid rgba(255,68,68,0.4);padding:18px;margin-top:10px;text-align:center">' +
+          '<div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#ff4444;letter-spacing:3px">✗ INVALID</div>' +
+          '<div style="font-size:12px;color:rgba(255,245,224,0.35);margin-top:5px">Code not found in guest list</div>' +
+          '</div>';
+      }
+    }
+    document.addEventListener('keyup', function(e){
+      if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'verify-code-input') verifyTicket();
+    });
 
     function manualAddRSVP(status) {
       var name = document.getElementById('manual-rsvp-name').value.trim();
@@ -463,6 +491,15 @@
           <h2>RSVPs <button class="refresh-btn" onclick="loadRSVPs()">↻ Refresh</button></h2>
           <a class="sheet-link" href="https://docs.google.com/spreadsheets/d/1PkeFrm-sCJwgM_MtkKiMw6B93tYnyTx6XltJWHNdHqs/edit" target="_blank">📊 VIEW SHEET →</a>
           <div id="hw-rsvp-list"><div class="empty-msg">Loading...</div></div>
+        </div>
+        <div class="section">
+          <h2>🔍 Verify Ticket at Door</h2>
+          <div class="section-sub">Type or paste a guest's code — confirm it's legit before letting them in.</div>
+          <div style="display:flex;gap:8px">
+            <input id="verify-code-input" class="form-input" placeholder="HW26-XXXXXX" style="margin-bottom:0;flex:1;font-family:monospace;letter-spacing:4px;text-transform:uppercase"/>
+            <button onclick="verifyTicket()" style="padding:10px 16px;background:var(--orange);border:none;color:#120300;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;flex-shrink:0">CHECK →</button>
+          </div>
+          <div id="verify-result"></div>
         </div>
         <div class="section">
           <h2>➕ Add RSVP Manually</h2>
