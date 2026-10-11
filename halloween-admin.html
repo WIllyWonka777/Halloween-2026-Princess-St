@@ -97,23 +97,38 @@
             (r.message?'<div class="signup-detail" style="color:rgba(255,107,0,0.4);font-style:italic">💬 '+esc(r.message)+'</div>':'')+
           '</div>'+
           '<div class="signup-actions">'+
-            (isIn?'<button class="action-sm ticket" title="Send ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\')">🎟️</button>':'')+
+            (isIn && !isPaid ? '<button class="action-sm green" title="Mark as paid" onclick="markPaid(\''+esc(r.name)+'\','+r.rowIndex+',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\')">💳 Paid</button>' : '')+
+            (isIn && isPaid && !r.ticket_code ? '<button class="action-sm ticket" title="Send ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\')">🎟️ Send Ticket</button>' : '')+
+            (isIn && isPaid && r.ticket_code ? '<button class="action-sm ticket" title="Resend ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\',\''+esc(guestsStr)+'\')">🔁 Resend</button>' : '')+
             '<button class="action-sm red" onclick="removeHWRSVP('+i+','+r.rowIndex+')">✗</button>'+
           '</div>'+
         '</div>';
       }).join('');
     }
 
-    function sendTicket(name, email) {
+    function markPaid(name, rowIndex, email, guests) {
+      if (!confirm('Mark ' + name + ' as PAID?\n\nThis updates the sheet. You can then send their ticket.')) return;
+      adminLog('⏳ Marking ' + name + ' as paid...', 'info');
+      fetch(SCRIPT_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'mark_hw_paid', rowIndex: rowIndex, name: name })
+      }).then(function() {
+        adminLog('💳 ' + name + ' marked as paid. Reloading...', 'success');
+        setTimeout(function(){ loadRSVPs(); }, 3000);
+      }).catch(function(){ adminLog('✗ Connection error — not marked', 'error'); });
+    }
+
+    function sendTicket(name, email, guests) {
       if (!email) {
         email = prompt('No email on file for ' + name + '.\nEnter their email address:');
         if (!email || !email.trim()) { adminLog('✗ Cancelled — no email entered', 'error'); return; }
         email = email.trim();
         if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ adminLog('✗ Invalid email address', 'error'); return; }
       }
-      if (!confirm('Send Halloween ticket to:\n\n' + name + '\n' + email + '\n\nThis emails them their unique entry code.')) return;
+      if (!confirm('Send ticket email to:\n\n' + name + '\n' + email + '\n\nIncludes entry code + guest list + venue instructions.')) return;
       adminLog('⏳ Sending ticket to ' + name + '...', 'info');
-      fetch(SCRIPT_URL + '?action=send_ticket&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email))
+      fetch(SCRIPT_URL + '?action=send_ticket&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email) + '&guests=' + encodeURIComponent(guests || ''))
         .then(function(r){ return r.json(); })
         .then(function(d){
           if (d.success) {
@@ -383,6 +398,7 @@
     .action-sm{padding:5px 10px;font-size:9px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;border:none;transition:all .2s;}
     .action-sm.red{background:rgba(255,68,68,0.15);color:var(--red);border:1px solid rgba(255,68,68,0.3);}
     .action-sm.ticket{background:rgba(245,197,24,0.1);color:#f5c518;border:1px solid rgba(245,197,24,0.3);}
+    .action-sm.green{background:rgba(107,204,107,0.12);color:#6bcc6b;border:1px solid rgba(107,204,107,0.3);}
     .status-paid{background:rgba(245,197,24,0.1);color:#f5c518;border:1px solid rgba(245,197,24,0.3);}
     .status-badge{font-size:8px;letter-spacing:1px;padding:2px 8px;border-radius:2px;}
     .status-in{background:rgba(0,255,136,0.1);color:#00ff88;border:1px solid rgba(0,255,136,0.3);}
