@@ -176,8 +176,10 @@
     window.addEventListener('load', function(){
       // Randomly show Jason or Freddy
       var r = Math.random() < 0.5;
-      document.getElementById('jason-svg').style.display = r ? 'block' : 'none';
-      document.getElementById('freddy-svg').style.display = r ? 'none' : 'block';
+      var jasonEl = document.getElementById('jason-svg');
+      var freddyEl = document.getElementById('freddy-svg');
+      if (jasonEl) jasonEl.style.display = r ? 'block' : 'none';
+      if (freddyEl) freddyEl.style.display = r ? 'none' : 'block';
       // Encoded email
       document.querySelectorAll('.hw-email').forEach(function(el){
         el.textContent = ['edu','ardo.montes','deoca200','@','gma','il.com'].join('');
