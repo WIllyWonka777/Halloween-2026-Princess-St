@@ -87,66 +87,33 @@
       });
     }
 
-    function renderSpiderTracker(confirmed) {
-      var pct = Math.min(confirmed, 100);
-      var el = document.getElementById('spot-counter');
+    function startCountdown() {
+      var el = document.getElementById('party-countdown');
       if (!el) return;
-      var R = 78;
-      var C = parseFloat((2 * Math.PI * R).toFixed(2));
-      var offset = parseFloat((C - C * pct / 100).toFixed(2));
-      var arcColor = pct >= 80 ? '#ff3333' : pct >= 50 ? '#ff8c00' : '#e8a000';
-      var statusText = pct >= 80 ? '⚠️ ALMOST AT CAPACITY' : pct >= 50 ? '👻 THE CROWD IS GATHERING' : '🕷️ THE CRYPT IS OPEN';
-      el.innerHTML =
-        '<style>' +
-        '@keyframes spiderpulse{0%,100%{transform:translateY(0) scale(1);filter:drop-shadow(0 0 8px rgba(255,140,0,1));}50%{transform:translateY(-5px) scale(1.2);filter:drop-shadow(0 0 18px rgba(255,140,0,1));}}' +
-        '@keyframes arcglow{0%,100%{filter:drop-shadow(0 0 8px ' + arcColor + ');}50%{filter:drop-shadow(0 0 20px ' + arcColor + ') drop-shadow(0 0 40px ' + arcColor + ');}}' +
-        '@keyframes webpulse{0%,100%{opacity:0.35;}50%{opacity:0.6;}}' +
-        '#spider-icon{display:inline-block;animation:spiderpulse 2s ease-in-out infinite;font-size:32px;}' +
-        '#progress-arc{animation:arcglow 2.5s ease-in-out infinite;}' +
-        '.web-line{animation:webpulse 3s ease-in-out infinite;}' +
-        '.web-ring{animation:webpulse 3.5s ease-in-out infinite;}' +
-        '</style>' +
-        '<div style="text-align:center;padding:14px 0 6px">' +
-        '<div style="font-family:Bebas Neue,sans-serif;font-size:13px;letter-spacing:6px;color:rgba(255,140,0,0.9);margin-bottom:12px;text-shadow:0 0 12px rgba(255,140,0,0.5)">RSVPs CONFIRMED</div>' +
-        '<svg viewBox="0 0 200 200" width="200" height="200" style="overflow:visible;display:block;margin:0 auto">' +
-        '<defs><filter id="glow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' +
-        '<line class="web-line" x1="100" y1="5" x2="100" y2="195" stroke="rgba(255,140,0,0.45)" stroke-width="1.5"/>' +
-        '<line class="web-line" x1="5" y1="100" x2="195" y2="100" stroke="rgba(255,140,0,0.45)" stroke-width="1.5"/>' +
-        '<line class="web-line" x1="29" y1="29" x2="171" y2="171" stroke="rgba(255,140,0,0.45)" stroke-width="1.5"/>' +
-        '<line class="web-line" x1="171" y1="29" x2="29" y2="171" stroke="rgba(255,140,0,0.45)" stroke-width="1.5"/>' +
-        '<circle class="web-ring" cx="100" cy="100" r="24" fill="none" stroke="rgba(255,140,0,0.35)" stroke-width="1.5"/>' +
-        '<circle class="web-ring" cx="100" cy="100" r="48" fill="none" stroke="rgba(255,140,0,0.3)" stroke-width="1.5"/>' +
-        '<circle class="web-ring" cx="100" cy="100" r="68" fill="none" stroke="rgba(255,140,0,0.25)" stroke-width="1.5"/>' +
-        '<circle cx="100" cy="100" r="' + R + '" fill="none" stroke="rgba(255,140,0,0.18)" stroke-width="18"/>' +
-        '<circle id="progress-arc" cx="100" cy="100" r="' + R + '" fill="none" stroke="' + arcColor + '" stroke-width="18" stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + offset + '" transform="rotate(-90 100 100)" style="filter:drop-shadow(0 0 12px ' + arcColor + ');transition:stroke-dashoffset 2s cubic-bezier(.4,0,.2,1),stroke 0.5s"/>' +
-        '<circle cx="100" cy="100" r="56" fill="rgba(10,4,2,0.7)"/>' +
-        '<text x="100" y="90" text-anchor="middle" dominant-baseline="middle" font-family="Bebas Neue,sans-serif" font-size="62" fill="' + arcColor + '" filter="url(#glow)">' + confirmed + '</text>' +
-        '<text x="100" y="132" text-anchor="middle" font-family="Bebas Neue,sans-serif" font-size="15" fill="rgba(255,220,160,0.7)" letter-spacing="3">/ 100</text>' +
-        '<text id="spider-icon" x="100" y="13" text-anchor="middle">🕷️</text>' +
-        '</svg>' +
-        '<div style="font-family:Bebas Neue,sans-serif;font-size:15px;color:' + arcColor + ';letter-spacing:3px;margin-top:10px;text-shadow:0 0 14px ' + arcColor + '">' + statusText + '</div>' +
-        '</div>';
-    }
-    function loadSpotCount() {
-      renderSpiderTracker(0);
-      fetch(SCRIPT_URL + '?action=get_halloween_rsvps')
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-          if (!d.success || !d.data) return;
-          var confirmed = d.data.filter(function(r){ return r.attending && r.attending === 'attending'; }).length;
-          renderSpiderTracker(confirmed);
-          if (confirmed >= 100) {
-            var submitBtn = document.getElementById('rsvpSubmitBtn');
-            if (submitBtn) {
-              submitBtn.disabled = true;
-              submitBtn.textContent = '💀 PARTY IS FULL';
-              submitBtn.style.background = 'rgba(255,68,68,0.2)';
-              submitBtn.style.borderColor = 'rgba(255,68,68,0.4)';
-              submitBtn.style.color = '#ff4444';
-              submitBtn.style.cursor = 'not-allowed';
-            }
-          }
-        }).catch(function(){});
+      var target = new Date('2026-10-31T17:00:00-04:00').getTime();
+      var end = new Date('2026-11-01T00:00:00-04:00').getTime();
+      function pad(n){ return (n < 10 ? '0' : '') + n; }
+      function cell(v, label){
+        return '<div class="cd-cell"><div class="cd-num">' + v + '</div><div class="cd-lbl">' + label + '</div></div>';
+      }
+      function tick(){
+        var now = Date.now();
+        if (now >= end) {
+          el.innerHTML = '<div class="cd-title">🕯️ THE CRYPT IS CLOSED</div><div class="cd-sub">Thanks for haunting with us. See you next year 💀</div>';
+          return;
+        }
+        if (now >= target) {
+          el.innerHTML = '<div class="cd-title">🎃 THE PARTY IS LIVE</div><div class="cd-sub">Doors are open until midnight. Get here 👻</div>';
+          return;
+        }
+        var t = Math.floor((target - now) / 1000);
+        var d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600), m = Math.floor(t % 3600 / 60), sec = t % 60;
+        el.innerHTML = '<div class="cd-title">🕷️ THE CRYPT OPENS IN</div>' +
+          '<div class="cd-row">' + cell(d, d === 1 ? 'Day' : 'Days') + cell(pad(h), 'Hrs') + cell(pad(m), 'Min') + cell(pad(sec), 'Sec') + '</div>' +
+          '<div class="cd-sub">Sat Oct 31 · 5PM → Midnight</div>';
+      }
+      tick();
+      setInterval(tick, 1000);
     }
 
     function copyEmail() {
@@ -184,8 +151,6 @@
       document.querySelectorAll('.hw-email').forEach(function(el){
         el.textContent = ['edu','ardo.montes','deoca200','@','gma','il.com'].join('');
       });
-      // Live spot counter
-      loadSpotCount();
     });
   </script>
   <style>
@@ -494,9 +459,19 @@
       </a>
     </div>
 
-    <!-- SPOT COUNTER -->
-    <div id="spot-counter" style="background:var(--mid);border:1px solid rgba(255,140,0,0.45);padding:12px 12px 8px;margin-bottom:10px;text-align:center;background:rgba(255,100,0,0.06)"></div>
-    <script>renderSpiderTracker(0);</script>
+    <!-- COUNTDOWN -->
+    <style>
+      #party-countdown{background:rgba(255,100,0,0.06);border:1px solid rgba(255,140,0,0.45);padding:18px 12px 14px;margin-bottom:10px;text-align:center}
+      #party-countdown .cd-title{font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:4px;white-space:nowrap;color:rgba(255,140,0,0.9);margin-bottom:12px;text-shadow:0 0 12px rgba(255,140,0,0.5)}
+      #party-countdown .cd-row{display:flex;justify-content:center;gap:8px}
+      #party-countdown .cd-cell{flex:1;max-width:80px;background:rgba(10,4,2,0.7);border:1px solid rgba(255,140,0,0.3);padding:10px 4px 8px}
+      #party-countdown .cd-num{font-family:'Bebas Neue',sans-serif;font-size:40px;line-height:1;color:#ff8c00;text-shadow:0 0 14px rgba(255,140,0,0.7);animation:cdglow 2.5s ease-in-out infinite}
+      #party-countdown .cd-lbl{font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:3px;color:rgba(255,220,160,0.6);margin-top:4px}
+      #party-countdown .cd-sub{font-size:12px;color:rgba(255,245,224,0.6);margin-top:12px;letter-spacing:1px}
+      @keyframes cdglow{0%,100%{text-shadow:0 0 10px rgba(255,140,0,0.5)}50%{text-shadow:0 0 22px rgba(255,140,0,1)}}
+    </style>
+    <div id="party-countdown"></div>
+    <script>startCountdown();</script>
 
     <!-- RSVP -->
     <div class="rsvp-box">
