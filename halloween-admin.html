@@ -62,21 +62,26 @@
         .then(function(d){
           if (!d.success) return;
           _rsvps = d.data||[];
-          var att = _rsvps.filter(function(r){ return r.attending && r.attending === 'attending'; });
-          var paidList = _rsvps.filter(function(r){ return r.paid === 'paid'; });
-          document.getElementById('hw-stat-rsvps').textContent = _rsvps.length;
-          document.getElementById('hw-stat-att').textContent = att.length;
-          document.getElementById('hw-stat-paid').textContent = paidList.length;
+          updateStats();
           renderRSVPs();
         }).catch(function(){});
     }
 
+    var COVER_PER_PERSON = 15;
+    // Each RSVP counts as the person who registered + their plus-ones
+    function headCount(r) {
+      return 1 + ((r.guests || []).filter(function(g){ return g && String(g).trim(); }).length);
+    }
     function updateStats() {
       var att = _rsvps.filter(function(r){ return r.attending === 'attending'; });
-      var paid = _rsvps.filter(function(r){ return r.paid === 'paid'; });
+      var paid = att.filter(function(r){ return r.paid === 'paid'; });
+      var people = att.reduce(function(n, r){ return n + headCount(r); }, 0);
+      var paidPeople = paid.reduce(function(n, r){ return n + headCount(r); }, 0);
       document.getElementById('hw-stat-rsvps').textContent = _rsvps.length;
-      document.getElementById('hw-stat-att').textContent = att.length;
-      document.getElementById('hw-stat-paid').textContent = paid.length;
+      document.getElementById('hw-stat-att').textContent = people;
+      document.getElementById('hw-stat-paid').textContent = paidPeople;
+      var money = document.getElementById('hw-stat-money');
+      if (money) money.textContent = '$' + (paidPeople * COVER_PER_PERSON) + ' collected of $' + (people * COVER_PER_PERSON) + ' expected · ' + att.length + ' RSVPs coming';
     }
     function renderRSVPs() {
       var el = document.getElementById('hw-rsvp-list');
@@ -87,7 +92,7 @@
         var guestsStr = (r.guests && r.guests.length) ? r.guests.filter(Boolean).join(', ') : '';
         return '<div class="signup-row">' +
           '<div class="signup-info">' +
-            '<div class="signup-name">'+esc(r.name)+
+            '<div class="signup-name">'+esc(r.name)+(headCount(r)>1?' <span style="opacity:.6">· party of '+headCount(r)+'</span>':'')+
               ' <span class="status-badge '+(isIn?'status-in':'status-out')+'">'+(isIn?'✓ Coming':'✗ Out')+'</span>'+
               (isPaid?' <span class="status-badge status-paid">💳 PAID</span>':'')+
             '</div>'+
@@ -97,21 +102,29 @@
             (r.message?'<div class="signup-detail" style="color:rgba(255,107,0,0.4);font-style:italic">💬 '+esc(r.message)+'</div>':'')+
           '</div>'+
           '<div class="signup-actions">'+
-            (isIn?'<button class="action-sm ticket" title="Send ticket email" onclick="sendTicket(\''+esc(r.name)+'\',\''+esc(r.email)+'\')">🎟️</button>':'')+
+            (isIn?'<button class="action-sm ticket" title="Send ticket email" onclick="sendTicketFor('+i+')">🎟️</button>':'')+
             '<button class="action-sm red" onclick="removeHWRSVP('+i+','+r.rowIndex+')">✗</button>'+
           '</div>'+
         '</div>';
       }).join('');
     }
 
-    function sendTicket(name, email) {
+    function sendTicketFor(i) {
+      var r = _rsvps[i];
+      if (r) sendTicket(r.name, r.email, headCount(r), (r.guests || []).filter(Boolean));
+    }
+
+    function sendTicket(name, email, people, guests) {
+      people = people || 1;
+      guests = guests || [];
       if (!email) {
         email = prompt('No email on file for ' + name + '.\nEnter their email address:');
         if (!email || !email.trim()) { adminLog('✗ Cancelled — no email entered', 'error'); return; }
         email = email.trim();
         if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ adminLog('✗ Invalid email address', 'error'); return; }
       }
-      if (!confirm('Send Halloween ticket to:\n\n' + name + '\n' + email + '\n\nThis emails them their unique entry code.')) return;
+      var who = people > 1 ? ('Admits ' + people + ': ' + [name].concat(guests).join(', ')) : 'Admits 1';
+      if (!confirm('Send Halloween ticket to:\n\n' + name + '\n' + email + '\n' + who + '\n\nHave all ' + people + ' paid? That\'s $' + (people * COVER_PER_PERSON) + '.\nSending marks the whole group as paid.')) return;
       adminLog('⏳ Sending ticket to ' + name + '...', 'info');
       fetch(SCRIPT_URL + '?action=send_ticket&name=' + encodeURIComponent(name) + '&email=' + encodeURIComponent(email))
         .then(function(r){ return r.json(); })
@@ -459,9 +472,10 @@
       <div class="apanel active" id="apanel-overview">
         <div class="stats-row">
           <div class="stat"><div class="stat-val" id="hw-stat-rsvps">0</div><div class="stat-label">Total RSVPs</div></div>
-          <div class="stat"><div class="stat-val" id="hw-stat-att">0</div><div class="stat-label">Coming</div></div>
-          <div class="stat"><div class="stat-val" id="hw-stat-paid">0</div><div class="stat-label">Paid 💳</div></div>
+          <div class="stat"><div class="stat-val" id="hw-stat-att">0</div><div class="stat-label">People coming</div></div>
+          <div class="stat"><div class="stat-val" id="hw-stat-paid">0</div><div class="stat-label">People paid 💳</div></div>
         </div>
+        <div id="hw-stat-money" style="text-align:center;font-size:13px;opacity:.7;margin:-4px 0 14px">$0 collected of $0 expected</div>
         <div class="section">
           <h2>RSVPs <button class="refresh-btn" onclick="loadRSVPs()">↻ Refresh</button></h2>
           <a class="sheet-link" href="https://docs.google.com/spreadsheets/d/1PkeFrm-sCJwgM_MtkKiMw6B93tYnyTx6XltJWHNdHqs/edit" target="_blank">📊 VIEW SHEET →</a>
