@@ -62,6 +62,9 @@
         .then(function(d){
           if (!d.success) return;
           _rsvps = d.data||[];
+          _rsvps.sort(function(a,b){
+            return String(a.name||'').trim().localeCompare(String(b.name||'').trim(), undefined, {sensitivity:'base'});
+          });
           updateStats();
           renderRSVPs();
         }).catch(function(){});
